@@ -15,6 +15,7 @@ function App() {
   
   const startGame = async () => {
     try {
+      console.log('Sending request to:', API_BASE_URL + '/start'); // برای دیباگ
       const response = await fetch(`${API_BASE_URL}/start`, {
         method: 'POST',
         headers: {
@@ -22,6 +23,7 @@ function App() {
         },
       });
       const data = await response.json();
+      console.log('Response:', data); // برای دیباگ
       setGameState({
         ...gameState,
         gameActive: true,
