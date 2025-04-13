@@ -11,9 +11,11 @@ function App() {
     gameOver: false
   });
 
+  const API_BASE_URL = 'https://math-game-fik6.onrender.com';
+  
   const startGame = async () => {
     try {
-      const response = await fetch('http://localhost:5000/start', {
+      const response = await fetch(`${API_BASE_URL}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,7 +40,7 @@ function App() {
     if (!gameState.gameActive) return;
     
     try {
-      const response = await fetch('http://localhost:5000/answer', {
+      const response = await fetch(`${API_BASE_URL}/answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,7 +76,7 @@ function App() {
     
     const timer = setInterval(async () => {
       try {
-        const response = await fetch('http://localhost:5000/status');
+        const response = await fetch(`${API_BASE_URL}/status`);
         const data = await response.json();
         
         if (!data.game_active && gameState.gameActive) {
