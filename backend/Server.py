@@ -4,6 +4,7 @@ import random
 import operator
 import time
 from threading import Thread, Lock
+import os
 
 app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
 CORS(app, resources={r"/*": {"origins": "*"}})  # تنظیم CORS برای تمام روت‌ها
@@ -167,4 +168,4 @@ def status():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))  # پورت Render
