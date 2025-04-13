@@ -141,8 +141,12 @@ game_instance = MathGame()
 
 # API Routes
 @app.route('/')
-def index():
-    return render_template('index.html')
+def serve():
+    return app.send_static_file('index.html')
+
+@app.errorhandler(404)
+def not_found(e):
+    return app.send_static_file('index.html')
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -163,4 +167,4 @@ def status():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
