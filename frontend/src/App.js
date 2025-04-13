@@ -80,11 +80,11 @@ function App() {
         const data = await response.json();
         
         if (!data.game_active && gameState.gameActive) {
-          setGameState({
-            ...gameState,
+          setGameState(prev => ({
+            ...prev,
             gameActive: false,
             gameOver: true
-          });
+          }));
         } else {
           setGameState(prev => ({
             ...prev,
@@ -97,7 +97,7 @@ function App() {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [gameState.gameActive, gameState.gameOver]);
+  }, [gameState.gameActive, gameState.gameOver]); // فقط وابستگی‌های ضروری
 
   return (
     <div className="app">
