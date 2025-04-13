@@ -11,7 +11,7 @@ function App() {
     gameOver: false
   });
 
-  const API_BASE_URL = 'https://math-game-fik6.onrender.com';
+  const API_BASE_URL = 'https://mini-app-xqvp.onrender.com';
   
   const startGame = async () => {
     try {
