@@ -9,18 +9,20 @@ function App() {
   const [answer, setAnswer] = useState(null);
   const [timeLeft, setTimeLeft] = useState(40);
   const [timer, setTimer] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const API_BASE_URL = 'https://mini-app-xqvp.onrender.com/api';
 
-  // تایمر را شروع کن
+  // Start the timer
   const startTimer = () => {
-    clearInterval(timer); // تایمر قبلی را پاک کن
+    clearInterval(timer);
     
     const newTimer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(newTimer);
-          checkGameStatus(); // وضعیت بازی را چک کن
+          checkGameStatus();
           return 0;
         }
         return prev - 1;
@@ -30,10 +32,23 @@ function App() {
     setTimer(newTimer);
   };
 
-  // تایمر را متوقف کن
+  // Stop the timer
   const stopTimer = () => {
     clearInterval(timer);
     setTimer(null);
+  };
+
+  // Fetch leaderboard data
+  const fetchLeaderboard = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/leaderboard`);
+      const data = await response.json();
+      if (data.status === 'success') {
+        setLeaderboard(data.players);
+      }
+    } catch (err) {
+      console.error('Error fetching leaderboard:', err);
+    }
   };
 
   const startGame = async () => {
@@ -57,9 +72,9 @@ function App() {
       setPlayerId(data.player_id);
       setTimeLeft(data.time_left);
       localStorage.setItem('playerId', data.player_id);
-      startTimer(); // تایمر جدید را شروع کن
+      startTimer();
     } catch (err) {
-      setError('خطا در شروع بازی: ' + err.message);
+      setError('Error starting game: ' + err.message);
       console.error('Error starting game:', err);
     } finally {
       setLoading(false);
@@ -89,18 +104,17 @@ function App() {
 
       const data = await response.json();
       setGameData(data);
-      setTimeLeft(data.time_left); // زمان جدید را تنظیم کن
+      setTimeLeft(data.time_left);
       
-      // اگر بازی تمام شده، تایمر را متوقف کن
       if (data.status === 'game_over') {
         stopTimer();
+        fetchLeaderboard(); // Update leaderboard when game ends
       } else {
-        // اگر بازی ادامه دارد، تایمر را ریست کن
         stopTimer();
         startTimer();
       }
     } catch (err) {
-      setError('خطا در ارسال پاسخ: ' + err.message);
+      setError('Error submitting answer: ' + err.message);
       console.error('Error submitting answer:', err);
     } finally {
       setLoading(false);
@@ -130,7 +144,6 @@ function App() {
       checkGameStatus();
     }
     
-    // هنگام حذف کامپوننت، تایمر را پاک کن
     return () => {
       stopTimer();
     };
@@ -141,56 +154,152 @@ function App() {
     submitAnswer(userAnswer);
   };
 
-  // محاسبه درصد زمان باقیمانده برای نوار پیشرفت
   const timePercent = (timeLeft / 40) * 100;
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>بازی ریاضی</h1>
+        <h1>Math Game</h1>
         
         {error && <div className="error">{error}</div>}
         
         {loading ? (
-          <div className="loading">درحال بارگذاری...</div>
+          <div className="loading">Loading...</div>
         ) : gameData?.status === 'game_over' ? (
           <div className="game-over">
-            <h2>بازی تمام شد!</h2>
-            <p>امتیاز نهایی شما: {gameData.final_score}</p>
-            <button onClick={startGame}>بازی مجدد</button>
+            <h2>Game Over!</h2>
+            <p>Your final score: {gameData.final_score}</p>
+            
+            <div className="game-over-buttons">
+              <button onClick={startGame}>Play Again</button>
+              <button 
+                className="leaderboard-btn"
+                onClick={() => {
+                  fetchLeaderboard();
+                  setShowLeaderboard(!showLeaderboard);
+                }}
+              >
+                {showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard'}
+              </button>
+            </div>
+            
+            {showLeaderboard && (
+              <div className="leaderboard">
+                <h3>Top Players</h3>
+                {leaderboard.length > 0 ? (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboard.map((player, index) => (
+                        <tr key={player.player_id} className={player.player_id === playerId ? 'current-player' : ''}>
+                          <td>{index + 1}</td>
+                          <td>
+                            {player.player_id === playerId 
+                              ? 'You' 
+                              : `Player ${player.player_id.substring(0, 4)}`}
+                          </td>
+                          <td>{player.score}</td>
+                          <td>
+                            {player.active 
+                              ? <span className="active-status">🟢 Playing</span> 
+                              : <span className="inactive-status">🔴 Finished</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p>No players found</p>
+                )}
+              </div>
+            )}
           </div>
         ) : gameData?.problem ? (
           <div className="game-container">
-            <h2>مسئله:</h2>
+            <h2>Problem:</h2>
             <p className="problem">{gameData.problem}</p>
             
-            {/* نوار پیشرفت زمان */}
             <div className="time-container">
               <div className="time-bar" style={{ width: `${timePercent}%` }}></div>
             </div>
-            <p className="time-text">زمان باقیمانده: {timeLeft} ثانیه</p>
+            <p className="time-text">Time left: {timeLeft} seconds</p>
             
             <div className="buttons">
               <button 
                 className={`answer-button ${answer === true ? 'selected' : ''}`}
                 onClick={() => handleAnswer(true)}
               >
-                صحیح
+                Correct
               </button>
               <button 
                 className={`answer-button ${answer === false ? 'selected' : ''}`}
                 onClick={() => handleAnswer(false)}
               >
-                غلط
+                Wrong
               </button>
             </div>
             
-            <div className="score">امتیاز: {gameData.score}</div>
+            <div className="score">Score: {gameData.score}</div>
+            
+            <button 
+              className="leaderboard-btn"
+              onClick={() => {
+                fetchLeaderboard();
+                setShowLeaderboard(!showLeaderboard);
+              }}
+            >
+              {showLeaderboard ? 'Hide Leaderboard' : 'Show Leaderboard'}
+            </button>
+            
+            {showLeaderboard && (
+              <div className="leaderboard">
+                <h3>Top Players</h3>
+                {leaderboard.length > 0 ? (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboard.map((player, index) => (
+                        <tr key={player.player_id} className={player.player_id === playerId ? 'current-player' : ''}>
+                          <td>{index + 1}</td>
+                          <td>
+                            {player.player_id === playerId 
+                              ? 'You' 
+                              : `Player ${player.player_id.substring(0, 4)}`}
+                          </td>
+                          <td>{player.score}</td>
+                          <td>
+                            {player.active 
+                              ? <span className="active-status">🟢 Playing</span> 
+                              : <span className="inactive-status">🔴 Finished</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p>No players found</p>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div>
             <button className="start-button" onClick={startGame}>
-              {playerId ? 'ادامه بازی' : 'شروع بازی جدید'}
+              {playerId ? 'Continue Game' : 'Start New Game'}
             </button>
           </div>
         )}

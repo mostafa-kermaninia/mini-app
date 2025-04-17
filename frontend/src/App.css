@@ -142,3 +142,35 @@ body {
     flex-direction: column;
   }
 } 
+
+/* Add to your App.css */
+.leaderboard {
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.leaderboard table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard th, .leaderboard td {
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid #444;
+}
+
+.leaderboard th {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.leaderboard-btn {
+  background-color: #6c5ce7;
+  margin-left: 10px;
+}
+
+.leaderboard-btn:hover {
+  background-color: #5649c0;
+}

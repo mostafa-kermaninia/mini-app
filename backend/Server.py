@@ -190,7 +190,7 @@ class MathGame:
                 is_correct = (user_answer == player.current_answer)
                 
                 if is_correct:
-                    player.time_left = min(60, player.time_left + 5)
+                    player.time_left = min(40, player.time_left + 5)
                     player.score += 1
                 else:
                     player.time_left = max(0, player.time_left - 15)
@@ -289,6 +289,28 @@ def debug():
             for p in game_instance.players.values()
         ]
     })
+    
+    
+@app.route('/api/leaderboard', methods=['GET'])
+def leaderboard():
+    with game_instance.lock:
+        players = sorted(
+            [p for p in game_instance.players.values()],
+            key=lambda x: x.score,
+            reverse=True
+        )
+        return jsonify({
+            "status": "success",
+            "players": [
+                {
+                    "player_id": p.id,
+                    "score": p.score,
+                    "time_left": p.time_left,
+                    "active": p.game_active
+                }
+                for p in players
+            ]
+        })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
