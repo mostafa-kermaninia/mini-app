@@ -2,166 +2,147 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
-  const [gameState, setGameState] = useState({
-    gameActive: false,
-    timeLeft: 40,
-    score: 0,
-    problem: '',
-    feedback: null,
-    gameOver: false
-  });
+  const [playerId, setPlayerId] = useState(localStorage.getItem('playerId') || '');
+  const [gameData, setGameData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [answer, setAnswer] = useState(null);
 
-  const API_BASE_URL = 'https://mini-app-xqvp.onrender.com';
-  
+  const API_BASE_URL = 'https://mini-app-xqvp.onrender.com/api';
+
   const startGame = async () => {
+    setLoading(true);
+    setError('');
     try {
-      console.log('Sending request to:', API_BASE_URL + '/start'); // For debugging
       const response = await fetch(`${API_BASE_URL}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(playerId ? { player_id: playerId } : {}),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      console.log('Response:', data); // For debugging
-      setGameState({
-        ...gameState,
-        gameActive: true,
-        timeLeft: data.time_left,
-        score: data.score,
-        problem: data.problem,
-        gameOver: false,
-        feedback: null
-      });
-    } catch (error) {
-      console.error('Error starting game:', error);
+      setGameData(data);
+      setPlayerId(data.player_id);
+      localStorage.setItem('playerId', data.player_id);
+    } catch (err) {
+      setError('Failed to start game: ' + err.message);
+      console.error('Error starting game:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAnswer = async (userAnswer) => {
-    if (!gameState.gameActive) return;
+  const submitAnswer = async (userAnswer) => {
+    if (!playerId) return;
     
+    setLoading(true);
+    setError('');
     try {
       const response = await fetch(`${API_BASE_URL}/answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ answer: userAnswer }),
+        body: JSON.stringify({
+          player_id: playerId,
+          answer: userAnswer
+        }),
       });
-      const data = await response.json();
-      
-      if (data.status === 'game_over') {
-        setGameState({
-          ...gameState,
-          gameActive: false,
-          gameOver: true,
-          score: data.final_score
-        });
-      } else {
-        setGameState({
-          ...gameState,
-          timeLeft: data.time_left,
-          score: data.score,
-          problem: data.problem,
-          feedback: data.feedback
-        });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error submitting answer:', error);
+
+      const data = await response.json();
+      setGameData(data);
+    } catch (err) {
+      setError('Failed to submit answer: ' + err.message);
+      console.error('Error submitting answer:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // For updating time if changed from the server side
-  useEffect(() => {
-    if (!gameState.gameActive || gameState.gameOver) return;
+  const checkGameStatus = async () => {
+    if (!playerId) return;
     
-    const timer = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/status`);
-        const data = await response.json();
-        
-        if (!data.game_active && gameState.gameActive) {
-          setGameState(prev => ({
-            ...prev,
-            gameActive: false,
-            gameOver: true
-          }));
-        } else {
-          setGameState(prev => ({
-            ...prev,
-            timeLeft: data.time_left
-          }));
-        }
-      } catch (error) {
-        console.error('Error checking game status:', error);
+    try {
+      const response = await fetch(`${API_BASE_URL}/status?player_id=${playerId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [gameState.gameActive, gameState.gameOver]); // Only essential dependencies
+
+      const data = await response.json();
+      setGameData(data);
+    } catch (err) {
+      console.error('Error checking game status:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (playerId) {
+      checkGameStatus();
+    }
+  }, [playerId]);
+
+  const handleAnswer = (userAnswer) => {
+    setAnswer(userAnswer);
+    submitAnswer(userAnswer);
+  };
 
   return (
-    <div className="app">
-      <h1>Math Game with Timer</h1>
-      
-      {!gameState.gameActive && !gameState.gameOver && (
-        <button className="start-button" onClick={startGame}>
-          Start Game
-        </button>
-      )}
-      
-      {gameState.gameOver && (
-        <div className="game-over">
-          <h2>Game Over!</h2>
-          <p>Final Score: {gameState.score}</p>
-          <button className="start-button" onClick={startGame}>
-            Play Again
-          </button>
-        </div>
-      )}
-      
-      {gameState.gameActive && (
-        <>
-          <div className="problem-container">
-            <h2>Is this equation correct?</h2>
-            <div className="problem">{gameState.problem}</div>
-            {gameState.feedback && (
-              <div className={`feedback ${gameState.feedback}`}>
-                {gameState.feedback === 'correct' ? '✅ Correct!' : '❌ Incorrect!'}
-              </div>
-            )}
+    <div className="App">
+      <header className="App-header">
+        <h1>Math Game</h1>
+        
+        {error && <div className="error">{error}</div>}
+        
+        {loading ? (
+          <div>Loading...</div>
+        ) : gameData?.status === 'game_over' ? (
+          <div>
+            <h2>Game Over!</h2>
+            <p>Your final score: {gameData.final_score}</p>
+            <button onClick={startGame}>Play Again</button>
           </div>
-          
-          <div className="controls">
-            <button 
-              className="answer-button true" 
-              onClick={() => handleAnswer(true)}
-            >
-              Yes (Correct)
-            </button>
-            <button 
-              className="answer-button false" 
-              onClick={() => handleAnswer(false)}
-            >
-              No (Incorrect)
-            </button>
-          </div>
-          
-          <div className="stats">
-            <div className="time-bar-container">
-              <div 
-                className="time-bar" 
-                style={{ width: `${(gameState.timeLeft / 40) * 100}%` }}
-              ></div>
+        ) : gameData?.problem ? (
+          <div>
+            <h2>Solve this:</h2>
+            <p className="problem">{gameData.problem}</p>
+            <div className="buttons">
+              <button 
+                className={answer === true ? 'selected' : ''}
+                onClick={() => handleAnswer(true)}
+              >
+                Correct
+              </button>
+              <button 
+                className={answer === false ? 'selected' : ''}
+                onClick={() => handleAnswer(false)}
+              >
+                Wrong
+              </button>
             </div>
-            <div className="info">
-              <span>Time Left: {gameState.timeLeft} seconds</span>
-              <span>Score: {gameState.score}</span>
+            <div className="game-info">
+              <p>Time left: {gameData.time_left}s</p>
+              <p>Score: {gameData.score}</p>
             </div>
           </div>
-        </>
-      )}
+        ) : (
+          <div>
+            <button onClick={startGame}>
+              {playerId ? 'Continue Game' : 'Start New Game'}
+            </button>
+          </div>
+        )}
+      </header>
     </div>
   );
 }

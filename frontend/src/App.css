@@ -1,116 +1,183 @@
+/* App.css - نسخه اصلاح شده و کامل */
 body {
-    margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    direction: rtl;
-    background-color: #f5f5f5;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-  }
-  
-  .app {
-    text-align: center;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    padding: 2rem;
-    width: 90%;
-    max-width: 500px;
-  }
-  
-  h1 {
-    color: #2c3e50;
-    margin-bottom: 2rem;
-  }
-  
-  .start-button {
-    background-color: #3498db;
-    color: white;
-    border: none;
-    padding: 0.8rem 1.5rem;
-    font-size: 1.2rem;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  
-  .start-button:hover {
-    background-color: #2980b9;
-  }
-  
-  .problem-container {
-    margin: 2rem 0;
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  direction: rtl;
+  background-color: #f5f5f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.App {
+  text-align: center;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  width: 90%;
+  max-width: 500px;
+}
+
+.App-header {
+  padding: 20px;
+}
+
+h1 {
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+}
+
+.error {
+  color: #e74c3c;
+  background-color: #fadbd8;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+}
+
+/* دکمه‌ها */
+button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin: 0.5rem;
+}
+
+button:hover {
+  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+button:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* مسائل ریاضی */
+.problem {
+  font-size: 2.2rem;
+  font-weight: bold;
+  color: #2c3e50;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+/* دکمه‌های پاسخ */
+.buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.buttons button {
+  flex: 1;
+  max-width: 150px;
+}
+
+.buttons button.selected {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.buttons button:first-child {
+  background-color: #2ecc71;
+}
+
+.buttons button:last-child {
+  background-color: #e74c3c;
+}
+
+/* اطلاعات بازی */
+.game-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #ecf0f1;
+  border-radius: 8px;
+}
+
+.game-info p {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  color: #34495e;
+}
+
+/* نوار زمان */
+.time-bar-container {
+  height: 10px;
+  background-color: #dfe6e9;
+  border-radius: 5px;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.time-bar {
+  height: 100%;
+  background-color: #3498db;
+  transition: width 1s linear;
+}
+
+/* صفحه پایان بازی */
+.game-over {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #fff3cd;
+  border-radius: 8px;
+}
+
+.game-over h2 {
+  color: #e74c3c;
+  margin-bottom: 1rem;
+}
+
+.game-over p {
+  font-size: 1.2rem;
+  margin: 0.5rem 0;
+}
+
+/* حالت بارگذاری */
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* نسخه موبایل */
+@media (max-width: 480px) {
+  .App {
+    padding: 1rem;
+    width: 95%;
   }
   
   .problem {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: #2c3e50;
-    margin: 1rem 0;
+    font-size: 1.8rem;
   }
   
-  .controls {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
+  .buttons {
+    flex-direction: column;
+    gap: 0.5rem;
   }
   
-  .answer-button {
-    padding: 0.8rem 1.5rem;
-    font-size: 1.1rem;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+  .buttons button {
+    max-width: 100%;
   }
-  
-  .answer-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .answer-button.true {
-    background-color: #2ecc71;
-    color: white;
-  }
-  
-  .answer-button.false {
-    background-color: #e74c3c;
-    color: white;
-  }
-  
-  .stats {
-    margin-top: 2rem;
-  }
-  
-  .time-bar-container {
-    background-color: #ecf0f1;
-    height: 20px;
-    border-radius: 10px;
-    margin-bottom: 1rem;
-    overflow: hidden;
-  }
-  
-  .time-bar {
-    height: 100%;
-    background-color: #3498db;
-    transition: width 1s linear;
-  }
-  
-  .info {
-    display: flex;
-    justify-content: space-between;
-    font-size: 1.1rem;
-    color: #7f8c8d;
-  }
-  
-  .game-over {
-    margin: 2rem 0;
-  }
-  
-  .game-over h2 {
-    color: #e74c3c;
-    margin-bottom: 1rem;
-  }
+}
