@@ -27,6 +27,7 @@ class Player:
     def __init__(self, player_id):
         self.id = player_id
         self.score = 0
+        self.top_score = 0
         self.time_left = 40
         self.game_active = False
         self.current_problem = ""
@@ -140,6 +141,7 @@ class MathGame:
                 
                 player.game_active = True
                 player.time_left = self.total_time
+                player.top_score = max(player.top_score, player.score)
                 player.score = 0
                 player.should_stop = False
                 player.last_activity = datetime.now()
@@ -304,7 +306,7 @@ def leaderboard():
             "players": [
                 {
                     "player_id": p.id,
-                    "score": p.score,
+                    "score": p.top_score,
                     "time_left": p.time_left,
                     "active": p.game_active
                 }
