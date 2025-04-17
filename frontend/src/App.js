@@ -15,7 +15,7 @@ function App() {
   
   const startGame = async () => {
     try {
-      console.log('Sending request to:', API_BASE_URL + '/start'); // برای دیباگ
+      console.log('Sending request to:', API_BASE_URL + '/start'); // For debugging
       const response = await fetch(`${API_BASE_URL}/start`, {
         method: 'POST',
         headers: {
@@ -23,7 +23,7 @@ function App() {
         },
       });
       const data = await response.json();
-      console.log('Response:', data); // برای دیباگ
+      console.log('Response:', data); // For debugging
       setGameState({
         ...gameState,
         gameActive: true,
@@ -37,7 +37,6 @@ function App() {
       console.error('Error starting game:', error);
     }
   };
-
 
   const handleAnswer = async (userAnswer) => {
     if (!gameState.gameActive) return;
@@ -73,7 +72,7 @@ function App() {
     }
   };
 
-  // برای به‌روزرسانی زمان در صورت تغییر از سمت سرور
+  // For updating time if changed from the server side
   useEffect(() => {
     if (!gameState.gameActive || gameState.gameOver) return;
     
@@ -100,24 +99,24 @@ function App() {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [gameState.gameActive, gameState.gameOver]); // فقط وابستگی‌های ضروری
+  }, [gameState.gameActive, gameState.gameOver]); // Only essential dependencies
 
   return (
     <div className="app">
-      <h1>بازی ریاضی با تایمر</h1>
+      <h1>Math Game with Timer</h1>
       
       {!gameState.gameActive && !gameState.gameOver && (
         <button className="start-button" onClick={startGame}>
-          شروع بازی
+          Start Game
         </button>
       )}
       
       {gameState.gameOver && (
         <div className="game-over">
-          <h2>بازی پایان یافت!</h2>
-          <p>امتیاز نهایی: {gameState.score}</p>
+          <h2>Game Over!</h2>
+          <p>Final Score: {gameState.score}</p>
           <button className="start-button" onClick={startGame}>
-            بازی مجدد
+            Play Again
           </button>
         </div>
       )}
@@ -125,11 +124,11 @@ function App() {
       {gameState.gameActive && (
         <>
           <div className="problem-container">
-            <h2>آیا این تساوی درست است؟</h2>
+            <h2>Is this equation correct?</h2>
             <div className="problem">{gameState.problem}</div>
             {gameState.feedback && (
               <div className={`feedback ${gameState.feedback}`}>
-                {gameState.feedback === 'correct' ? '✅ پاسخ صحیح!' : '❌ پاسخ نادرست!'}
+                {gameState.feedback === 'correct' ? '✅ Correct!' : '❌ Incorrect!'}
               </div>
             )}
           </div>
@@ -139,13 +138,13 @@ function App() {
               className="answer-button true" 
               onClick={() => handleAnswer(true)}
             >
-              بله (درست)
+              Yes (Correct)
             </button>
             <button 
               className="answer-button false" 
               onClick={() => handleAnswer(false)}
             >
-              خیر (نادرست)
+              No (Incorrect)
             </button>
           </div>
           
@@ -157,8 +156,8 @@ function App() {
               ></div>
             </div>
             <div className="info">
-              <span>زمان باقیمانده: {gameState.timeLeft} ثانیه</span>
-              <span>امتیاز: {gameState.score}</span>
+              <span>Time Left: {gameState.timeLeft} seconds</span>
+              <span>Score: {gameState.score}</span>
             </div>
           </div>
         </>
