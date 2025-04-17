@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import random
 import operator
@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 # تنظیمات پایه
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # تنظیمات لاگینگ
@@ -224,16 +224,22 @@ class MathGame:
 
 game_instance = MathGame()
 
-@app.route('/')
-def index():
-    return jsonify({"status": "Server is running"})
+# Route برای سرویس دهی فایل‌های استاتیک
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
-@app.route('/start', methods=['POST'])
+# API Routes
+@app.route('/api/start', methods=['POST'])
 def start():
     player_id = request.json.get('player_id') if request.json else None
     return jsonify(game_instance.start_game(player_id))
 
-@app.route('/answer', methods=['POST'])
+@app.route('/api/answer', methods=['POST'])
 def answer():
     data = request.get_json()
     if not data:
@@ -247,7 +253,7 @@ def answer():
     
     return jsonify(game_instance.check_answer(player_id, user_answer))
 
-@app.route('/status', methods=['GET'])
+@app.route('/api/status', methods=['GET'])
 def status():
     player_id = request.args.get('player_id')
     if not player_id:
@@ -266,7 +272,7 @@ def status():
     
     return jsonify({"status": "error", "message": "Player not found"}), 404
 
-@app.route('/debug', methods=['GET'])
+@app.route('/api/debug', methods=['GET'])
 def debug():
     return jsonify({
         "timestamp": datetime.now().isoformat(),
