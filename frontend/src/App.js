@@ -7,8 +7,34 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [answer, setAnswer] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(40);
+  const [timer, setTimer] = useState(null);
 
   const API_BASE_URL = 'https://mini-app-xqvp.onrender.com/api';
+
+  // تایمر را شروع کن
+  const startTimer = () => {
+    clearInterval(timer); // تایمر قبلی را پاک کن
+    
+    const newTimer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(newTimer);
+          checkGameStatus(); // وضعیت بازی را چک کن
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    setTimer(newTimer);
+  };
+
+  // تایمر را متوقف کن
+  const stopTimer = () => {
+    clearInterval(timer);
+    setTimer(null);
+  };
 
   const startGame = async () => {
     setLoading(true);
@@ -29,9 +55,11 @@ function App() {
       const data = await response.json();
       setGameData(data);
       setPlayerId(data.player_id);
+      setTimeLeft(data.time_left);
       localStorage.setItem('playerId', data.player_id);
+      startTimer(); // تایمر جدید را شروع کن
     } catch (err) {
-      setError('Failed to start game: ' + err.message);
+      setError('خطا در شروع بازی: ' + err.message);
       console.error('Error starting game:', err);
     } finally {
       setLoading(false);
@@ -61,8 +89,18 @@ function App() {
 
       const data = await response.json();
       setGameData(data);
+      setTimeLeft(data.time_left); // زمان جدید را تنظیم کن
+      
+      // اگر بازی تمام شده، تایمر را متوقف کن
+      if (data.status === 'game_over') {
+        stopTimer();
+      } else {
+        // اگر بازی ادامه دارد، تایمر را ریست کن
+        stopTimer();
+        startTimer();
+      }
     } catch (err) {
-      setError('Failed to submit answer: ' + err.message);
+      setError('خطا در ارسال پاسخ: ' + err.message);
       console.error('Error submitting answer:', err);
     } finally {
       setLoading(false);
@@ -81,6 +119,7 @@ function App() {
 
       const data = await response.json();
       setGameData(data);
+      setTimeLeft(data.time_left);
     } catch (err) {
       console.error('Error checking game status:', err);
     }
@@ -90,6 +129,11 @@ function App() {
     if (playerId) {
       checkGameStatus();
     }
+    
+    // هنگام حذف کامپوننت، تایمر را پاک کن
+    return () => {
+      stopTimer();
+    };
   }, [playerId]);
 
   const handleAnswer = (userAnswer) => {
@@ -97,48 +141,56 @@ function App() {
     submitAnswer(userAnswer);
   };
 
+  // محاسبه درصد زمان باقیمانده برای نوار پیشرفت
+  const timePercent = (timeLeft / 40) * 100;
+
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Math Game</h1>
+        <h1>بازی ریاضی</h1>
         
         {error && <div className="error">{error}</div>}
         
         {loading ? (
-          <div>Loading...</div>
+          <div className="loading">درحال بارگذاری...</div>
         ) : gameData?.status === 'game_over' ? (
-          <div>
-            <h2>Game Over!</h2>
-            <p>Your final score: {gameData.final_score}</p>
-            <button onClick={startGame}>Play Again</button>
+          <div className="game-over">
+            <h2>بازی تمام شد!</h2>
+            <p>امتیاز نهایی شما: {gameData.final_score}</p>
+            <button onClick={startGame}>بازی مجدد</button>
           </div>
         ) : gameData?.problem ? (
-          <div>
-            <h2>Solve this:</h2>
+          <div className="game-container">
+            <h2>مسئله:</h2>
             <p className="problem">{gameData.problem}</p>
+            
+            {/* نوار پیشرفت زمان */}
+            <div className="time-container">
+              <div className="time-bar" style={{ width: `${timePercent}%` }}></div>
+            </div>
+            <p className="time-text">زمان باقیمانده: {timeLeft} ثانیه</p>
+            
             <div className="buttons">
               <button 
-                className={answer === true ? 'selected' : ''}
+                className={`answer-button ${answer === true ? 'selected' : ''}`}
                 onClick={() => handleAnswer(true)}
               >
-                Correct
+                صحیح
               </button>
               <button 
-                className={answer === false ? 'selected' : ''}
+                className={`answer-button ${answer === false ? 'selected' : ''}`}
                 onClick={() => handleAnswer(false)}
               >
-                Wrong
+                غلط
               </button>
             </div>
-            <div className="game-info">
-              <p>Time left: {gameData.time_left}s</p>
-              <p>Score: {gameData.score}</p>
-            </div>
+            
+            <div className="score">امتیاز: {gameData.score}</div>
           </div>
         ) : (
           <div>
-            <button onClick={startGame}>
-              {playerId ? 'Continue Game' : 'Start New Game'}
+            <button className="start-button" onClick={startGame}>
+              {playerId ? 'ادامه بازی' : 'شروع بازی جدید'}
             </button>
           </div>
         )}

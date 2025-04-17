@@ -1,4 +1,4 @@
-/* App.css - نسخه اصلاح شده و کامل */
+/* استایل‌های پایه */
 body {
   margin: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -20,102 +20,11 @@ body {
   max-width: 500px;
 }
 
-.App-header {
-  padding: 20px;
-}
-
-h1 {
-  color: #2c3e50;
-  margin-bottom: 1.5rem;
-}
-
-.error {
-  color: #e74c3c;
-  background-color: #fadbd8;
-  padding: 10px;
-  border-radius: 5px;
-  margin-bottom: 1rem;
-}
-
-/* دکمه‌ها */
-button {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 0.8rem 1.5rem;
-  font-size: 1.1rem;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s;
-  margin: 0.5rem;
-}
-
-button:hover {
-  background-color: #2980b9;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
-}
-
-/* مسائل ریاضی */
-.problem {
-  font-size: 2.2rem;
-  font-weight: bold;
-  color: #2c3e50;
-  margin: 1.5rem 0;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-}
-
-/* دکمه‌های پاسخ */
-.buttons {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.buttons button {
-  flex: 1;
-  max-width: 150px;
-}
-
-.buttons button.selected {
-  transform: scale(1.05);
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-}
-
-.buttons button:first-child {
-  background-color: #2ecc71;
-}
-
-.buttons button:last-child {
-  background-color: #e74c3c;
-}
-
-/* اطلاعات بازی */
-.game-info {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background-color: #ecf0f1;
-  border-radius: 8px;
-}
-
-.game-info p {
-  margin: 0.5rem 0;
-  font-size: 1.1rem;
-  color: #34495e;
-}
-
-/* نوار زمان */
-.time-bar-container {
+/* استایل نوار زمان */
+.time-container {
+  width: 100%;
   height: 10px;
-  background-color: #dfe6e9;
+  background-color: #eee;
   border-radius: 5px;
   margin: 1rem 0;
   overflow: hidden;
@@ -123,45 +32,102 @@ button:disabled {
 
 .time-bar {
   height: 100%;
-  background-color: #3498db;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  border-radius: 5px;
   transition: width 1s linear;
 }
 
-/* صفحه پایان بازی */
-.game-over {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  background-color: #fff3cd;
-  border-radius: 8px;
+.time-text {
+  color: #555;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
 }
 
-.game-over h2 {
-  color: #e74c3c;
+/* استایل‌های دیگر... */
+.game-container {
+  margin: 1rem 0;
+}
+
+.problem {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 1.5rem 0;
+  color: #333;
+}
+
+.buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.answer-button {
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.answer-button:first-child {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.answer-button:last-child {
+  background-color: #F44336;
+  color: white;
+}
+
+.answer-button.selected {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.score {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #2196F3;
+}
+
+.error {
+  color: #F44336;
+  background-color: #FFEBEE;
+  padding: 0.8rem;
+  border-radius: 5px;
   margin-bottom: 1rem;
 }
 
-.game-over p {
-  font-size: 1.2rem;
-  margin: 0.5rem 0;
-}
-
-/* حالت بارگذاری */
 .loading {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255,255,255,.3);
-  border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 1s ease-in-out infinite;
-  margin-right: 10px;
+  color: #607D8B;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.start-button {
+  background-color: #2196F3;
+  color: white;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
 
-/* نسخه موبایل */
+.start-button:hover {
+  background-color: #0b7dda;
+}
+
+.game-over {
+  margin: 1rem 0;
+}
+
+.game-over h2 {
+  color: #F44336;
+}
+
+/* رسپانسیو */
 @media (max-width: 480px) {
   .App {
     padding: 1rem;
@@ -169,15 +135,10 @@ button:disabled {
   }
   
   .problem {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
   }
   
   .buttons {
     flex-direction: column;
-    gap: 0.5rem;
   }
-  
-  .buttons button {
-    max-width: 100%;
-  }
-}
+} 
