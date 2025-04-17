@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import random
 import operator
@@ -6,9 +6,22 @@ import time
 from threading import Thread, Lock
 import os
 import uuid
+import logging
+from datetime import datetime
 
-app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
+# تنظیمات پایه
+app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# تنظیمات لاگینگ
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('game_server.log'),
+        logging.StreamHandler()
+    ]
+)
 
 class Player:
     def __init__(self, player_id):
@@ -19,13 +32,20 @@ class Player:
         self.current_problem = ""
         self.current_answer = None
         self.timer_thread = None
+        self.should_stop = False
+        self.last_activity = datetime.now()
+        logging.info(f"New player created: {player_id}")
 
 class MathGame:
     def __init__(self):
-        self.players = {}  # Dictionary to store all players
+        self.players = {}
         self.lock = Lock()
         self.total_time = 40
-    
+        self.cleanup_interval = 600  # 10 minutes
+        self.cleanup_thread = Thread(target=self.cleanup_inactive_players, daemon=True)
+        self.cleanup_thread.start()
+        logging.info("MathGame initialized")
+
     def generate_math_problem(self):
         operations = {
             '+': operator.add,
@@ -37,7 +57,7 @@ class MathGame:
         op_symbol = random.choice(list(operations.keys()))
         op_func = operations[op_symbol]
         
-        if op_symbol == '*' or op_symbol == '/':
+        if op_symbol in ['*', '/']:
             num1 = random.randint(1, 10)
             num2 = random.randint(1, 50)
         else:
@@ -68,118 +88,202 @@ class MathGame:
         
         return problem, is_correct
     
-    def run_timer(self, player_id):
-        player = self.players[player_id]
-        while player.time_left > 0 and player.game_active:
-            time.sleep(1)
+    def cleanup_inactive_players(self):
+        while True:
+            time.sleep(self.cleanup_interval)
             with self.lock:
-                player.time_left -= 1
-                
-        with self.lock:
-            if player.time_left <= 0:
-                player.game_active = False
-    
-    def start_game(self, player_id):
-        with self.lock:
-            if player_id not in self.players:
-                self.players[player_id] = Player(player_id)
-            
+                now = datetime.now()
+                inactive_players = [
+                    pid for pid, player in self.players.items()
+                    if (now - player.last_activity).total_seconds() > self.cleanup_interval
+                ]
+                for pid in inactive_players:
+                    if self.players[pid].timer_thread:
+                        self.players[pid].should_stop = True
+                        self.players[pid].timer_thread.join(timeout=1)
+                    del self.players[pid]
+                    logging.info(f"Cleaned up inactive player: {pid}")
+
+    def run_timer(self, player_id):
+        try:
             player = self.players[player_id]
-            player.game_active = True
-            player.time_left = self.total_time
-            player.score = 0
-            problem, answer = self.generate_math_problem()
-            player.current_problem = problem
-            player.current_answer = answer
+            player.should_stop = False
             
-            if player.timer_thread and player.timer_thread.is_alive():
-                player.timer_thread.join()
+            while player.time_left > 0 and not player.should_stop:
+                time.sleep(1)
+                with self.lock:
+                    player.time_left -= 1
+                    player.last_activity = datetime.now()
                 
-            player.timer_thread = Thread(target=self.run_timer, args=(player_id,))
-            player.timer_thread.start()
-            
-        return {
-            "problem": problem,
-            "time_left": player.time_left,
-            "score": player.score,
-            "player_id": player_id
-        }
+            with self.lock:
+                if player.time_left <= 0:
+                    player.game_active = False
+                    logging.info(f"Player {player_id} game over - time expired")
+                
+        except Exception as e:
+            logging.error(f"Timer error for {player_id}: {str(e)}")
+
+    def start_game(self, player_id=None):
+        with self.lock:
+            try:
+                if not player_id:
+                    player_id = str(uuid.uuid4())
+                
+                if player_id in self.players:
+                    player = self.players[player_id]
+                    if player.timer_thread and player.timer_thread.is_alive():
+                        player.should_stop = True
+                        player.timer_thread.join(timeout=1)
+                else:
+                    player = Player(player_id)
+                    self.players[player_id] = player
+                
+                player.game_active = True
+                player.time_left = self.total_time
+                player.score = 0
+                player.should_stop = False
+                player.last_activity = datetime.now()
+                
+                problem, answer = self.generate_math_problem()
+                player.current_problem = problem
+                player.current_answer = answer
+                
+                player.timer_thread = Thread(target=self.run_timer, args=(player_id,))
+                player.timer_thread.start()
+                
+                logging.info(f"Game started for {player_id}")
+                
+                return {
+                    "status": "success",
+                    "player_id": player_id,
+                    "problem": problem,
+                    "time_left": player.time_left,
+                    "score": player.score,
+                    "game_active": True
+                }
+                
+            except Exception as e:
+                logging.error(f"Start game error: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": str(e)
+                }
 
     def check_answer(self, player_id, user_answer):
         with self.lock:
-            if player_id not in self.players:
-                return {"status": "error", "message": "Player not found"}
-            
-            player = self.players[player_id]
-            
-            if not player.game_active:
+            try:
+                if player_id not in self.players:
+                    return {
+                        "status": "error",
+                        "message": "Player not found. Start a new game."
+                    }
+                
+                player = self.players[player_id]
+                player.last_activity = datetime.now()
+                
+                if not player.game_active:
+                    return {
+                        "status": "game_over",
+                        "final_score": player.score
+                    }
+                
+                is_correct = (user_answer == player.current_answer)
+                
+                if is_correct:
+                    player.time_left = min(60, player.time_left + 5)
+                    player.score += 1
+                else:
+                    player.time_left = max(0, player.time_left - 15)
+                
+                if player.time_left <= 0:
+                    player.game_active = False
+                    return {
+                        "status": "game_over",
+                        "final_score": player.score
+                    }
+                
+                problem, answer = self.generate_math_problem()
+                player.current_problem = problem
+                player.current_answer = answer
+                
                 return {
-                    "status": "game_over",
-                    "final_score": player.score
+                    "status": "continue",
+                    "problem": problem,
+                    "time_left": player.time_left,
+                    "score": player.score,
+                    "feedback": "correct" if is_correct else "wrong",
+                    "game_active": True
                 }
-            
-            is_correct = (user_answer == player.current_answer)
-            
-            if is_correct:
-                player.time_left += 5
-                player.score += 1
-            else:
-                player.time_left = max(0, player.time_left - 15)
-            
-            if player.time_left <= 0:
-                player.game_active = False
+                
+            except Exception as e:
+                logging.error(f"Check answer error: {str(e)}")
                 return {
-                    "status": "game_over",
-                    "final_score": player.score
+                    "status": "error",
+                    "message": str(e)
                 }
-            
-            problem, answer = self.generate_math_problem()
-            player.current_problem = problem
-            player.current_answer = answer
-            
-            return {
-                "status": "continue",
-                "problem": problem,
-                "time_left": player.time_left,
-                "score": player.score,
-                "feedback": "correct" if is_correct else "wrong"
-            }
 
 game_instance = MathGame()
 
-# API Routes
 @app.route('/')
-def serve():
-    return app.send_static_file('index.html')
-
-@app.errorhandler(404)
-def not_found(e):
-    return app.send_static_file('index.html')
+def index():
+    return jsonify({"status": "Server is running"})
 
 @app.route('/start', methods=['POST'])
 def start():
-    # Generate a unique player ID
-    player_id = str(uuid.uuid4())
+    player_id = request.json.get('player_id') if request.json else None
     return jsonify(game_instance.start_game(player_id))
 
 @app.route('/answer', methods=['POST'])
 def answer():
     data = request.get_json()
-    user_answer = data.get('answer')
+    if not data:
+        return jsonify({"status": "error", "message": "No data provided"}), 400
+    
     player_id = data.get('player_id')
+    user_answer = data.get('answer')
+    
+    if not player_id or user_answer is None:
+        return jsonify({"status": "error", "message": "player_id and answer are required"}), 400
+    
     return jsonify(game_instance.check_answer(player_id, user_answer))
 
 @app.route('/status', methods=['GET'])
 def status():
     player_id = request.args.get('player_id')
+    if not player_id:
+        return jsonify({"status": "error", "message": "player_id is required"}), 400
+    
     if player_id in game_instance.players:
         player = game_instance.players[player_id]
         return jsonify({
+            "status": "success",
             "game_active": player.game_active,
             "time_left": player.time_left,
-            "score": player.score
+            "score": player.score,
+            "current_problem": player.current_problem if player.game_active else None,
+            "last_activity": player.last_activity.isoformat()
         })
-    return jsonify({"error": "Player not found"}), 404
+    
+    return jsonify({"status": "error", "message": "Player not found"}), 404
+
+@app.route('/debug', methods=['GET'])
+def debug():
+    return jsonify({
+        "timestamp": datetime.now().isoformat(),
+        "active_players": len([p for p in game_instance.players.values() if p.game_active]),
+        "total_players": len(game_instance.players),
+        "players": [
+            {
+                "id": p.id,
+                "active": p.game_active,
+                "time_left": p.time_left,
+                "score": p.score,
+                "last_activity": p.last_activity.isoformat()
+            }
+            for p in game_instance.players.values()
+        ]
+    })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, threaded=True)
