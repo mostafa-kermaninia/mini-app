@@ -6,7 +6,7 @@ setup(
     description="A simple math game API built with Flask",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
-    author="Your Name",
+    author="Momis Group",
     author_email="your.email@example.com",
     packages=find_packages(),
     install_requires=[

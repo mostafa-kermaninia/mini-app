@@ -8,6 +8,7 @@ import os
 import uuid
 import logging
 from datetime import datetime
+from math_engine import generate as generate_problem
 
 # تنظیمات پایه
 app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
@@ -47,48 +48,7 @@ class MathGame:
         self.cleanup_thread.start()
         logging.info("MathGame initialized")
 
-    def generate_math_problem(self):
-        operations = {
-            '+': operator.add,
-            '-': operator.sub,
-            '*': operator.mul,
-            '/': operator.truediv
-        }
-        
-        op_symbol = random.choice(list(operations.keys()))
-        op_func = operations[op_symbol]
-        
-        if op_symbol in ['*', '/']:
-            num1 = random.randint(1, 10)
-            num2 = random.randint(1, 50)
-        else:
-            num1 = random.randint(1, 200)
-            num2 = random.randint(1, 200)
-        
-        if op_symbol == '-' and num2 > num1:
-            num1, num2 = num2, num1
-        
-        if op_symbol == '/' and num1 % num2 != 0:
-            num1 -= num1 % num2
-        
-        correct_answer = op_func(num1, num2)
-        
-        if random.random() < 0.6:
-            display_answer = correct_answer
-            is_correct = True
-        else:
-            if op_func == '/':
-                display_answer = correct_answer + random.randint(1, 7)
-            elif correct_answer > 20 and random.random() < 0.5: 
-                display_answer = correct_answer - random.randint(1, 20)
-            else:
-                display_answer = correct_answer + random.randint(1, 20)
-            is_correct = False
-        
-        problem = f"{num1} {op_symbol} {num2} = {display_answer}"
-        
-        return problem, is_correct
-    
+
     def cleanup_inactive_players(self):
         while True:
             time.sleep(self.cleanup_interval)
@@ -146,7 +106,7 @@ class MathGame:
                 player.should_stop = False
                 player.last_activity = datetime.now()
                 
-                problem, answer = self.generate_math_problem()
+                problem, answer = generate_problem()
                 player.current_problem = problem
                 player.current_answer = answer
                 
@@ -194,8 +154,9 @@ class MathGame:
                 if is_correct:
                     player.time_left = min(40, player.time_left + 5)
                     player.score += 1
+                    player.top_score = max(player.top_score, player.score)
                 else:
-                    player.time_left = max(0, player.time_left - 15)
+                    player.time_left = max(0, player.time_left - 10)
                 
                 if player.time_left <= 0:
                     player.game_active = False
@@ -204,7 +165,7 @@ class MathGame:
                         "final_score": player.score
                     }
                 
-                problem, answer = self.generate_math_problem()
+                problem, answer = generate_problem()
                 player.current_problem = problem
                 player.current_answer = answer
                 
@@ -297,8 +258,8 @@ def debug():
 def leaderboard():
     with game_instance.lock:
         players = sorted(
-            [p for p in game_instance.players.values()],
-            key=lambda x: x.score,
+            game_instance.players.values(),
+            key=lambda x: x.top_score,
             reverse=True
         )
         return jsonify({
