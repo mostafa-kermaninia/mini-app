@@ -12,7 +12,13 @@ from math_engine import generate as generate_problem
 
 # تنظیمات پایه
 app = Flask(__name__, static_folder='../frontend/build', static_url_path='/')
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -197,10 +203,18 @@ def serve(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 # API Routes
+# @app.route('/api/start', methods=['POST'])
+# def start():
+#     player_id = request.json.get('player_id') if request.json else None
+#     return jsonify(game_instance.start_game(player_id))
+
 @app.route('/api/start', methods=['POST'])
 def start():
-    player_id = request.json.get('player_id') if request.json else None
-    return jsonify(game_instance.start_game(player_id))
+    try:
+        player_id = request.json.get('player_id')
+        return jsonify(game_instance.start_game(player_id))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/answer', methods=['POST'])
 def answer():
