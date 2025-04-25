@@ -62,7 +62,7 @@ function App() {
     setView("game"); // همیشه با نمای بازی شروع می‌کنیم
   
     try {
-      const res = await fetch(`${API_BASE}/api/start`, {  // تغییر به /api/start
+      const res = await fetch(`${API_BASE}/start`, {  // تغییر به /api/start
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
