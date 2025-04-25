@@ -59,24 +59,38 @@ function App() {
   /* -------- API: شروع بازی -------- */
   const startGame = async () => {
     setLoading(true);
-    setView("game");         // ← همیشه با نمای بازی شروع می‌کنیم
-
+    setView("game"); // همیشه با نمای بازی شروع می‌کنیم
+  
     try {
-      const res  = await fetch(`${API_BASE}/start`, {
+      const res = await fetch(`${API_BASE}/api/start`, {  // تغییر به /api/start
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: playerId ? JSON.stringify({ player_id: playerId }) : null,
+        body: JSON.stringify({ 
+          player_id: playerId || ""  // همیشه player_id را ارسال می‌کنیم، حتی اگر خالی باشد
+        }),
       });
+      
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+  
       const data = await res.json();
+      
+      // بررسی وجود player_id در پاسخ سرور
+      if (!data.player_id) {
+        throw new Error("Player ID not received from server");
+      }
+  
       setGameData({ problem: data.problem });
       setPlayerId(data.player_id);
       localStorage.setItem("playerId", data.player_id);
       startLocalTimer(data.time_left ?? ROUND_TIME);
+      setScore(data.score || 0);  // مقداردهی اولیه score از سرور
     } catch (e) {
-      alert("خطا در شروع بازی: " + e.message);
+      console.error("Error starting game:", e);
+      alert("Error starting game: " + e.message);
     } finally {
       setLoading(false);
-      setScore(0);
     }
   };
 

@@ -211,7 +211,7 @@ def serve(path):
 @app.route('/api/start', methods=['POST'])
 def start():
     try:
-        player_id = request.json.get('player_id')
+        player_id = request.json.get('player_id') if request.json else str(uuid.uuid4())  # تغییر اینجا
         return jsonify(game_instance.start_game(player_id))
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
