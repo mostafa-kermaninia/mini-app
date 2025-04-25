@@ -12,8 +12,7 @@ import Leaderboard   from "./components/Leaderboard";
 /* ثابت‌ها */
 const ROUND_TIME = 40;                                 // طول هر دور
 const POLL_MS    = 5000;                               // بازهٔ استعلام از سرور
-const API_BASE   =
-  process.env.REACT_APP_API_BASE_URL || "/api";        // در dev از CRA proxy
+const API_BASE   = "https://mini-app-xqvp.onrender.com/api";        // در dev از CRA proxy
 
 function App() {
   /* ---------- State ---------- */
