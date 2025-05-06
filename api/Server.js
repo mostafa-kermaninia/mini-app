@@ -6,28 +6,39 @@ const mathEngine = require('./math_engine');
 
 // تنظیمات پایه
 const app = express();
-// قبل از تعریف routes
-const corsOptions = {
-    origin: [
-      'https://math-game-mkpr2d0fo-amirnaddaf2004s-projects.vercel.app',
-      'https://your-vercel-app-name.vercel.app'
-    ],
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
-    credentials: true
-  };
-  
-app.use(cors(corsOptions));
-  
-// برای پیش‌پرواز (preflight) درخواست‌های OPTIONS
-app.options('*', cors(corsOptions));
 
+// تنظیمات پیشرفته CORS
+const allowedOrigins = [
+  'https://math-game-r9p0eagc0-amirnaddaf2004s-projects.vercel.app',
+  'https://math-game-neon-three.vercel.app',
+  'https://math-game-mkpr2d0fo-amirnaddaf2004s-projects.vercel.app',
+  'http://localhost:3000' // برای توسعه محلی
+];
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`Blocked by CORS: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+  credentials: true,
+  optionsSuccessStatus: 200 // برای برخی مرورگرهای قدیمی
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 app.use(express.json());
 
-// تنظیمات لاگینگ
+// بهبود سیستم لاگینگ
 const logger = {
     info: (message) => console.log(`[INFO] ${new Date().toISOString()} - ${message}`),
-    error: (message) => console.error(`[ERROR] ${new Date().toISOString()} - ${message}`)
+    error: (message) => console.error(`[ERROR] ${new Date().toISOString()} - ${message}`),
+    debug: (message) => console.debug(`[DEBUG] ${new Date().toISOString()} - ${message}`)
 };
 
 class Player {
@@ -56,29 +67,41 @@ class MathGame {
     }
 
     startCleanup() {
-        setInterval(() => this.cleanupInactivePlayers(), this.cleanup_interval);
+        setInterval(() => {
+            try {
+                this.cleanupInactivePlayers();
+            } catch (e) {
+                logger.error(`Cleanup error: ${e.message}`);
+            }
+        }, this.cleanup_interval);
     }
 
     cleanupInactivePlayers() {
         const now = new Date();
         Object.keys(this.players).forEach(pid => {
-            if ((now - this.players[pid].last_activity) > this.cleanup_interval) {
-                if (this.players[pid].timer) {
-                    this.players[pid].should_stop = true;
-                    clearTimeout(this.players[pid].timer);
+            try {
+                if ((now - this.players[pid].last_activity) > this.cleanup_interval) {
+                    if (this.players[pid].timer) {
+                        this.players[pid].should_stop = true;
+                        clearTimeout(this.players[pid].timer);
+                    }
+                    delete this.players[pid];
+                    logger.info(`Cleaned up inactive player: ${pid}`);
                 }
-                delete this.players[pid];
-                logger.info(`Cleaned up inactive player: ${pid}`);
+            } catch (e) {
+                logger.error(`Error cleaning player ${pid}: ${e.message}`);
             }
         });
     }
 
     runTimer(playerId) {
         const player = this.players[playerId];
+        if (!player) return;
+
         player.should_stop = false;
 
         const tick = () => {
-            if (player.should_stop || !player.game_active) return;
+            if (!player || player.should_stop || !player.game_active) return;
 
             player.time_left -= 1;
             player.last_activity = new Date();
@@ -205,69 +228,143 @@ const gameInstance = new MathGame();
 // Route برای سرویس دهی فایل‌های استاتیک
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
+// Middleware برای بررسی سلامت سرور
+app.use((req, res, next) => {
+    logger.debug(`Incoming request: ${req.method} ${req.path}`);
+    next();
+});
+
+// Route اصلی برای فرانت‌اند
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    try {
+        res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    } catch (e) {
+        logger.error(`Error serving frontend: ${e.message}`);
+        res.status(500).send('Server error');
+    }
+});
+
+// Route برای manifest.json
+app.get('/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.sendFile(path.join(__dirname, '../frontend/build', 'manifest.json'));
 });
 
 // API Routes
 app.post('/api/start', (req, res) => {
     try {
-        const playerId = req.body.player_id || uuidv4();
-        res.json(gameInstance.startGame(playerId));
+        const playerId = req.body?.player_id || uuidv4();
+        const result = gameInstance.startGame(playerId);
+        logger.info(`Game started for player: ${playerId}`);
+        res.json(result);
     } catch (e) {
-        res.status(500).json({ status: "error", message: e.message });
+        logger.error(`API start error: ${e.message}`);
+        res.status(500).json({ 
+            status: "error", 
+            message: "Internal server error",
+            details: process.env.NODE_ENV === 'development' ? e.message : null
+        });
     }
 });
 
 app.post('/api/answer', (req, res) => {
-    const { player_id, answer } = req.body;
-    
-    if (!player_id || answer === undefined) {
-        return res.status(400).json({ 
+    try {
+        const { player_id, answer } = req.body;
+        
+        if (!player_id || answer === undefined) {
+            return res.status(400).json({ 
+                status: "error", 
+                message: "player_id and answer are required" 
+            });
+        }
+
+        const result = gameInstance.checkAnswer(player_id, answer);
+        res.json(result);
+    } catch (e) {
+        logger.error(`API answer error: ${e.message}`);
+        res.status(500).json({ 
             status: "error", 
-            message: "player_id and answer are required" 
+            message: "Internal server error" 
         });
     }
-
-    res.json(gameInstance.checkAnswer(player_id, answer));
 });
 
 app.get('/api/status', (req, res) => {
-    const playerId = req.query.player_id;
-    if (!playerId) {
-        return res.status(400).json({ 
+    try {
+        const playerId = req.query.player_id;
+        if (!playerId) {
+            return res.status(400).json({ 
+                status: "error", 
+                message: "player_id is required" 
+            });
+        }
+
+        if (gameInstance.players[playerId]) {
+            const player = gameInstance.players[playerId];
+            return res.json({
+                status: "success",
+                game_active: player.game_active,
+                time_left: player.time_left,
+                score: player.score,
+                current_problem: player.game_active ? player.current_problem : null,
+                last_activity: player.last_activity.toISOString()
+            });
+        }
+
+        res.status(404).json({ status: "error", message: "Player not found" });
+    } catch (e) {
+        logger.error(`API status error: ${e.message}`);
+        res.status(500).json({ 
             status: "error", 
-            message: "player_id is required" 
+            message: "Internal server error" 
         });
     }
-
-    if (gameInstance.players[playerId]) {
-        const player = gameInstance.players[playerId];
-        return res.json({
-            status: "success",
-            game_active: player.game_active,
-            time_left: player.time_left,
-            score: player.score,
-            current_problem: player.game_active ? player.current_problem : null,
-            last_activity: player.last_activity.toISOString()
-        });
-    }
-
-    res.status(404).json({ status: "error", message: "Player not found" });
 });
 
 app.get('/api/leaderboard', (req, res) => {
-    const players = Object.values(gameInstance.players)
-        .sort((a, b) => b.top_score - a.top_score)
-        .map(p => ({
-            player_id: p.id,
-            score: p.top_score,
-            active: p.game_active
-        }));
+    try {
+        const players = Object.values(gameInstance.players)
+            .sort((a, b) => b.top_score - a.top_score)
+            .map(p => ({
+                player_id: p.id,
+                score: p.top_score,
+                active: p.game_active
+            }));
 
-    res.json({
-        status: "success",
-        players
+        res.json({
+            status: "success",
+            players
+        });
+    } catch (e) {
+        logger.error(`API leaderboard error: ${e.message}`);
+        res.status(500).json({ 
+            status: "error", 
+            message: "Internal server error" 
+        });
+    }
+});
+
+// Route برای بررسی سلامت سرور
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'healthy',
+        players: Object.keys(gameInstance.players).length,
+        uptime: process.uptime() 
+    });
+});
+
+// مدیریت خطاهای 404
+app.use((req, res) => {
+    res.status(404).json({ status: "error", message: "Endpoint not found" });
+});
+
+// مدیریت خطاهای سرور
+app.use((err, req, res, next) => {
+    logger.error(`Server error: ${err.message}`);
+    res.status(500).json({ 
+        status: "error", 
+        message: "Internal server error",
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
     });
 });
 
@@ -279,5 +376,6 @@ if (require.main === module) {
     const PORT = process.env.PORT || 10000;
     app.listen(PORT, () => {
         logger.info(`Server running on port ${PORT}`);
+        logger.info(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
     });
 }
