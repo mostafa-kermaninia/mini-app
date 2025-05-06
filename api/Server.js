@@ -6,11 +6,21 @@ const mathEngine = require('./math_engine');
 
 // تنظیمات پایه
 const app = express();
-app.use(cors({
-    origin:  'https://math-game-neon-three.vercel.app', // آدرس فرانت‌اند در Vercel,
+// قبل از تعریف routes
+const corsOptions = {
+    origin: [
+      'https://math-game-mkpr2d0fo-amirnaddaf2004s-projects.vercel.app',
+      'https://your-vercel-app-name.vercel.app'
+    ],
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type']
-  }));
+    allowedHeaders: ['Content-Type'],
+    credentials: true
+  };
+  
+app.use(cors(corsOptions));
+  
+// برای پیش‌پرواز (preflight) درخواست‌های OPTIONS
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 

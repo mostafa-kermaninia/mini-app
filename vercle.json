@@ -7,17 +7,25 @@
       },
       {
         "src": "frontend/package.json",
-        "use": "@vercel/static-build"
+        "use": "@vercel/static-build",
+        "config": {
+          "distDir": "build"
+        }
       }
     ],
     "routes": [
       {
         "src": "/api/(.*)",
-        "dest": "api/server.js"
+        "dest": "api/server.js",
+        "headers": {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
       },
       {
         "src": "/(.*)",
         "dest": "frontend/build/$1"
       }
     ]
-}
+  }
