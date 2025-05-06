@@ -7,7 +7,7 @@ const mathEngine = require('./math_engine');
 // تنظیمات پایه
 const app = express();
 app.use(cors({
-    origin:  'https://your-frontend.vercel.app', // آدرس فرانت‌اند در Vercel,
+    origin:  'https://math-game-neon-three.vercel.app', // آدرس فرانت‌اند در Vercel,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type']
   }));

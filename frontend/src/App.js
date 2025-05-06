@@ -13,7 +13,7 @@ import Leaderboard   from "./components/Leaderboard";
 const ROUND_TIME = 40;                                 // طول هر دور
 const POLL_MS    = 5000;                               // بازهٔ استعلام از سرور
 // در فایل App.js
-const API_BASE = 'https://your-vercel-app-name.vercel.app/api';
+const API_BASE = 'https://math-game-neon-three.vercel.app/api';
 
 function App() {
   /* ---------- State ---------- */
