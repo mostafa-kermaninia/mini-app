@@ -12,7 +12,8 @@ import Leaderboard   from "./components/Leaderboard";
 /* ثابت‌ها */
 const ROUND_TIME = 40;                                 // طول هر دور
 const POLL_MS    = 5000;                               // بازهٔ استعلام از سرور
-const API_BASE   = "https://mini-app-xqvp.onrender.com/api";        // در dev از CRA proxy
+// در فایل App.js
+const API_BASE = 'https://your-vercel-app-name.vercel.app/api';
 
 function App() {
   /* ---------- State ---------- */
@@ -59,33 +60,26 @@ function App() {
   /* -------- API: شروع بازی -------- */
   const startGame = async () => {
     setLoading(true);
-    setView("game"); // همیشه با نمای بازی شروع می‌کنیم
-  
+    setView("game");
+
     try {
-      const res = await fetch(`${API_BASE}/start`, {  // تغییر به /api/start
+      const res = await fetch(`${API_BASE}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          player_id: playerId || ""  // همیشه player_id را ارسال می‌کنیم، حتی اگر خالی باشد
-        }),
+        body: JSON.stringify({ player_id: playerId || "" }),
       });
       
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-  
       const data = await res.json();
       
-      // بررسی وجود player_id در پاسخ سرور
-      if (!data.player_id) {
-        throw new Error("Player ID not received from server");
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to start game");
       }
-  
+
       setGameData({ problem: data.problem });
       setPlayerId(data.player_id);
       localStorage.setItem("playerId", data.player_id);
-      startLocalTimer(data.time_left ?? ROUND_TIME);
-      setScore(data.score || 0);  // مقداردهی اولیه score از سرور
+      startLocalTimer(data.time_left || ROUND_TIME);
+      setScore(data.score || 0);
     } catch (e) {
       console.error("Error starting game:", e);
       alert("Error starting game: " + e.message);
@@ -94,30 +88,38 @@ function App() {
     }
   };
 
-  /* -------- API: ارسال پاسخ -------- */
   const submitAnswer = async (answer) => {
     if (!gameData) return;
     setLoading(true);
+    
     try {
-      const res  = await fetch(`${API_BASE}/answer`, {
+      const res = await fetch(`${API_BASE}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: playerId, answer }),
+        body: JSON.stringify({ 
+          player_id: playerId, 
+          answer: Boolean(answer) // تبدیل به boolean برای تطابق با سرور
+        }),
       });
+      
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit answer");
+      }
 
       if (data.status === "continue") {
         setGameData({ problem: data.problem });
         setScore(data.score);
-        startLocalTimer(data.time_left ?? ROUND_TIME);
+        startLocalTimer(data.time_left || ROUND_TIME);
       } else if (data.status === "game_over") {
         clearLocalTimer();
         setGameData(null);
         setFinalScore(data.final_score);
-        setView("board");  // ← نمایش لیدر‌بُرد
+        setView("board");
       }
     } catch (e) {
-      alert("خطا در ارسال پاسخ: " + e.message);
+      alert("Error submitting answer: " + e.message);
     } finally {
       setLoading(false);
     }

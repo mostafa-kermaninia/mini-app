@@ -1,1 +1,16 @@
 .qodo
+# فایل‌های پایتون
+*.py
+__pycache__/
+venv/
+
+# فایل‌های Node
+node_modules/
+*.log
+
+# فایل‌های محیطی
+.env
+.env.local
+
+# فایل‌های build
+frontend/build/
