@@ -1,15 +1,12 @@
 services:
   - type: web
-    name: Math-Game-Momis
+    name: frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: "./frontend/build"
+    
+  - type: web
+    name: backend
     runtime: node
-    buildCommand: |
-      npm install
-      cd frontend
-      npm install --include=dev
-      CI=false npm run build
+    buildCommand: cd backend && npm install
     startCommand: node server.js
-    # envVars:
-    #   - key: DATABASE_URL
-    #     fromDatabase:
-    #       name: math-game-db
-    #       property: connectionStrin

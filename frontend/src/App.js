@@ -6,7 +6,9 @@ import Leaderboard from "./components/Leaderboard";
 
 const ROUND_TIME = 40;
 const POLL_INTERVAL = 5000;
-const API_BASE = process.env.REACT_APP_API_URL || 'https://math-game-momis.onrender.com/api';
+const API_BASE = process.env.NODE_ENV === 'production' 
+  ? 'https://your-backend-url.onrender.com/api' 
+  : 'http://localhost:5000/api';
 
 function App() {
   // State

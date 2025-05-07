@@ -272,3 +272,9 @@ app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
     logger.info(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
 });
+
+    // // در server.js
+    // app.use((req, res, next) => {
+    //     console.log(`دریافت درخواست: ${req.method} ${req.path}`);
+    //     next();
+    //   });
