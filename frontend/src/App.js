@@ -129,7 +129,7 @@ function App() {
       abortControllerRef.current = abortController;
   
       // دریافت و اعتبارسنجی اولیه داده‌های تلگرام
-      const initData = window.Telegram?.WebApp?.initData;
+      const initData = window.Telegram.WebApp.initData;
       const requestBody = {
         player_id: playerId || "",
         ...(initData ? { initData } : {}) // فقط اگر initData وجود دارد آن را اضافه کن
