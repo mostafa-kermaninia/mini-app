@@ -8,3 +8,12 @@ venv/
 node_modules/
 *.log
 
+# فایل‌های محیطی
+.env
+.env.local
+
+# فایل‌های build
+frontend/build/
+
+
+# دیتابیسه
