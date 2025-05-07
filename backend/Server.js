@@ -3,6 +3,9 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const mathEngine = require('./math_engine.js');
+const crypto = require('crypto');
+const fetch = require('node-fetch');
+const telegramAuth = require('./telegramAuth');
 
 // تنظیمات پایه
 const app = express();
@@ -39,6 +42,7 @@ const logger = {
 class Player {
     constructor(playerId) {
         this.id = playerId;
+        this.telegramUser = telegramUser; // اطلاعات کاربر تلگرام
         this.score = 0;
         this.top_score = 0;
         this.time_left = 40;
@@ -113,17 +117,28 @@ class MathGame {
         player.timer = setTimeout(tick, 1000);
     }
 
-    startGame(playerId = null) {
+    startGame(playerId = null, initData = null) {
         try {
+            let telegramUser = null;
+    
+            // اعتبارسنجی داده‌های تلگرام اگر وجود دارند
+            if (initData) {
+            telegramUser = validateTelegramData(initData, process.env.BOT_TOKEN);
+            }
+
             playerId = playerId || uuidv4();
 
             if (this.players[playerId]) {
                 const player = this.players[playerId];
+                if (telegramUser) {
+                    player.telegramUser = telegramUser;
+                }
+                // else error
                 if (player.timer) {
                     clearTimeout(player.timer);
                 }
             } else {
-                this.players[playerId] = new Player(playerId);
+                this.players[playerId] = new Player(playerId, telegramUser);
             }
 
             const player = this.players[playerId];
@@ -224,18 +239,47 @@ const gameInstance = new MathGame();
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // API Routes
+
+// قبل از سایر routeها اضافه کنید
+app.post('/api/telegram-auth', (req, res) => {
+    try {
+      const { initData } = req.body;
+      
+      if (!initData) {
+        return res.status(400).json({ valid: false });
+      }
+  
+      const user = validateTelegramData(initData, process.env.BOT_TOKEN);
+      
+      return res.json({
+        valid: true,
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          username: user.username
+        }
+      });
+  
+    } catch (error) {
+      console.error('Telegram auth error:', error);
+      return res.status(401).json({ valid: false });
+    }
+  });
+
+
 app.post('/api/start', (req, res) => {
     try {
-        const playerId = req.body?.player_id || uuidv4();
-        const result = gameInstance.startGame(playerId);
-        logger.info(`Game started for player: ${playerId}`);
-        res.json(result);
+    const { player_id, initData } = req.body;
+    const result = gameInstance.startGame(player_id, initData);
+      
+      res.json(result);
     } catch (e) {
-        logger.error(`API start error: ${e.message}`);
-        res.status(500).json({ 
-            status: "error", 
-            message: "Internal server error"
-        });
+      logger.error(`API start error: ${e.message}`);
+      res.status(500).json({ 
+        status: "error", 
+        message: "Internal server error"
+      });
     }
 });
 

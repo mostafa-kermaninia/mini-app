@@ -51,7 +51,3 @@ function generate() {
 module.exports = {
     generate
 };
-// مثال استفاده:
-// const question = generate();
-// console.log(question.problem);
-// console.log("Is correct?", question.is_correct);

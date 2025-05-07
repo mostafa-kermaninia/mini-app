@@ -3,6 +3,8 @@ import ProblemCard from "./components/ProblemCard";
 import AnswerButtons from "./components/AnswerButtons";
 import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
+import { getTelegramUserData } from './utils/telegramAuth';
+
 
 // ثابت‌های برنامه
 const ROUND_TIME = 40;
@@ -23,6 +25,36 @@ function App() {
   const [score, setScore] = useState(0);
   const [error, setError] = useState(null);
   const [leaderboardKey, setLeaderboardKey] = useState(Date.now());
+  const [telegramUser, setTelegramUser] = useState(null);
+
+  useEffect(() => {
+    const tgUserData = getTelegramUserData();
+    if (tgUserData && tgUserData.validated) {
+      setTelegramUser(tgUserData.user);
+      
+      // ارسال داده کاربر به سرور برای اعتبارسنجی نهایی
+      authenticateUser(tgUserData.initData);
+    }
+  }, []);
+
+  const authenticateUser = async (initData) => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/telegram`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ initData }),
+      });
+      
+      const data = await response.json();
+      if (!data.valid) {
+        console.error('Authentication failed');
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+    }
+  };
 
   // Refs برای تایمرها
   const timerId = useRef(null);
@@ -119,15 +151,23 @@ function App() {
   const startGame = useCallback(async () => {
     try {
       setLoading(true);
+          
+      // دریافت داده‌های تلگرام اگر در مینی‌اپ هستیم
+      const initData = window.Telegram?.WebApp?.initData;
+
+      
       setError(null);
       setView("game");
       abortControllerRef.current = new AbortController();
-
+      
       const response = await fetch(`${API_BASE}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: playerId || "" }),
-        signal: abortControllerRef.current.signal
+        body: JSON.stringify({ 
+          player_id: playerId || "",
+          initData,
+          signal: abortControllerRef.current.signal
+        }),
       });
 
       if (!response.ok) {

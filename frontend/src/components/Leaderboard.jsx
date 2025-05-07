@@ -71,7 +71,7 @@ export default function Leaderboard({ API_BASE, onReplay, finalScore }) {
             >
               <span>{i + 1}</span>
               <span className="flex-1 text-center truncate">
-                {r.player_id.slice(0, 6)}... {/* نمایش بخشی از ID */}
+                {r.telegramUser?.username || `Player ${r.player_id.slice(0, 6)}`}
               </span>
               <span className="font-bold text-indigo-600">{r.score}</span>
             </li>
