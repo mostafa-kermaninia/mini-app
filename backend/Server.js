@@ -5,7 +5,7 @@ const path = require('path');
 const mathEngine = require('./math_engine.js');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
-const telegramAuth = require('./telegramAuth');
+const validateTelegramData = require('./telegramAuth');
 
 // تنظیمات پایه
 const app = express();
