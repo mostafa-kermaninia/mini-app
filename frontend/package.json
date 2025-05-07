@@ -21,7 +21,7 @@
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "vercel --prod",
-    "postinstall": "patch-package"
+    "postinstall": "echo 'Skipping patch-package in production'"
   },
   "eslintConfig": {
     "extends": [
@@ -64,17 +64,5 @@
   "resolutions": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
-  },
-  "vercel": {
-    "rewrites": [
-      {
-        "source": "/api/(.*)",
-        "destination": "api/server.js"
-      },
-      {
-        "source": "/(.*)",
-        "destination": "/"
-      }
-    ]
   }
 }
