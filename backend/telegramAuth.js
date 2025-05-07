@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 export default function validateTelegramData(initData, botToken) {
   const parsedData = new URLSearchParams(initData);
