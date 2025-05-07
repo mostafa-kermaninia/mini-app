@@ -120,43 +120,85 @@ function App() {
   const startGame = useCallback(async () => {
     try {
       setLoading(true);
-          
-      // دریافت داده‌های تلگرام اگر در مینی‌اپ هستیم
-      
-      
       setError(null);
       setView("game");
-      abortControllerRef.current = new AbortController();
       
+      // ایجاد AbortController برای مدیریت درخواست‌های لغو شده
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+  
+      // دریافت و اعتبارسنجی اولیه داده‌های تلگرام
       const initData = window.Telegram?.WebApp?.initData;
+      const requestBody = {
+        player_id: playerId || "",
+        ...(initData ? { initData } : {}) // فقط اگر initData وجود دارد آن را اضافه کن
+      };
+  
+      // ارسال درخواست به سرور
       const response = await fetch(`${API_BASE}/start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          player_id: playerId || "",
-          initData
-        }),
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Request-ID": uuidv4() // اضافه کردن شناسه منحصر به فرد برای ردیابی
+        },
+        body: JSON.stringify(requestBody),
+        signal: abortController.signal
       });
-
+  
+      // بررسی وضعیت پاسخ
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to start game");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || 
+          `Request failed with status ${response.status}`
+        );
       }
-
+  
+      // پردازش پاسخ موفق
       const data = await response.json();
       
-      setProblem(data.problem);
-      const newPlayerId = data.player_id;
-      setPlayerId(newPlayerId);
-      localStorage.setItem("playerId", newPlayerId);
-      startLocalTimer(data.time_left || ROUND_TIME);
-      setScore(data.score || 0);
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Game start error:", err);
-        setError(err.message);
+      // اعتبارسنجی پاسخ سرور
+      if (!data || data.status !== "success") {
+        throw new Error(data?.message || "Invalid server response");
       }
+  
+      // به‌روزرسانی state با داده‌های دریافتی
+      setProblem(data.problem);
+      setPlayerId(data.player_id);
+      localStorage.setItem("playerId", data.player_id);
+      startLocalTimer(data.time_left ?? ROUND_TIME); // استفاده از nullish coalescing
+      setScore(data.score ?? 0);
+  
+      // لاگ موفقیت‌آمیز
+      console.log("Game started successfully", { 
+        playerId: data.player_id,
+        hasTelegramData: !!initData
+      });
+  
+    } catch (err) {
+      // مدیریت خطاها
+      if (err.name === 'AbortError') {
+        console.log("Request was aborted");
+        return;
+      }
+  
+      console.error("Game start error:", {
+        error: err,
+        message: err.message,
+        stack: err.stack
+      });
+  
+      setError(
+        err.message.includes("Failed to fetch") 
+          ? "Could not connect to server. Please check your connection."
+          : err.message
+      );
+  
+      // بازگشت به صفحه اصلی در صورت خطا
+      setView("home");
+      
     } finally {
+      // اطمینان از توقف loading state
       if (!abortControllerRef.current?.signal.aborted) {
         setLoading(false);
       }

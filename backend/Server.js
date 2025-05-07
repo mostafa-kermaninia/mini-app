@@ -120,56 +120,86 @@ class MathGame {
     startGame(playerId = null, initData = null) {
         try {
             let telegramUser = null;
+            let isNewPlayer = false;
     
             // اعتبارسنجی داده‌های تلگرام اگر وجود دارند
             if (initData) {
-            telegramUser = validateTelegramData(initData, process.env.BOT_TOKEN);
+                try {
+                    telegramUser = validateTelegramData(initData, process.env.BOT_TOKEN);
+                    logger.info(`Telegram user validated: ${telegramUser?.id}`);
+                } catch (error) {
+                    logger.warn(`Telegram validation failed: ${error.message}`);
+                    // ادامه اجرا حتی اگر اعتبارسنجی شکست خورد
+                }
             }
-
+    
+            // تولید شناسه بازیکن جدید اگر وجود نداشته باشد
             playerId = playerId || uuidv4();
-
+    
+            // مدیریت بازیکن موجود یا جدید
             if (this.players[playerId]) {
                 const player = this.players[playerId];
+                
+                // به روزرسانی اطلاعات تلگرام اگر وجود دارد
                 if (telegramUser) {
                     player.telegramUser = telegramUser;
                 }
-                // else error
+                
+                // تایمر قبلی را متوقف کن
                 if (player.timer) {
                     clearTimeout(player.timer);
                 }
             } else {
                 this.players[playerId] = new Player(playerId, telegramUser);
+                isNewPlayer = true;
             }
-
+    
             const player = this.players[playerId];
+            
+            // تنظیمات اولیه بازی
             player.game_active = true;
             player.time_left = this.total_time;
-            player.top_score = Math.max(player.top_score, player.score);
-            player.score = 0;
+            
+            // فقط برای بازیکنان جدید، امتیاز را ریست کن
+            if (isNewPlayer) {
+                player.top_score = 0;
+                player.score = 0;
+            }
+            
             player.should_stop = false;
             player.last_activity = new Date();
-
+    
+            // تولید مسئله جدید
             const { problem, is_correct } = mathEngine.generate();
             player.current_problem = problem;
             player.current_answer = is_correct;
-
+    
+            // شروع تایمر
             this.runTimer(playerId);
-
-            logger.info(`Game started for ${playerId}`);
-
+    
+            logger.info(`Game started for ${playerId}`, {
+                isNewPlayer,
+                telegramUser: !!telegramUser
+            });
+    
             return {
                 status: "success",
                 player_id: playerId,
                 problem: problem,
                 time_left: player.time_left,
                 score: player.score,
-                game_active: true
+                game_active: true,
+                is_new_player: isNewPlayer,
+                telegram_user: telegramUser || null
             };
         } catch (e) {
-            logger.error(`Start game error: ${e.message}`);
+            logger.error(`Start game error: ${e.message}`, {
+                stack: e.stack
+            });
             return {
                 status: "error",
-                message: e.message
+                message: "Failed to start game",
+                details: process.env.NODE_ENV === 'development' ? e.message : null
             };
         }
     }
@@ -267,18 +297,68 @@ app.post('/api/telegram-auth', (req, res) => {
   });
 
 
-app.post('/api/start', (req, res) => {
+app.post('/api/start', async (req, res) => {
     try {
-    const { player_id, initData } = req.body;
-    const result = gameInstance.startGame(player_id, initData);
-      
-      res.json(result);
+        // اعتبارسنجی اولیه بدنه درخواست
+        if (!req.body || typeof req.body !== 'object') {
+            return res.status(400).json({
+                status: "error",
+                message: "Invalid request body"
+            });
+        }
+
+        const { player_id, initData } = req.body;
+
+        // اعتبارسنجی اولیه پارامترها
+        if (player_id && typeof player_id !== 'string') {
+            return res.status(400).json({
+                status: "error",
+                message: "player_id must be a string if provided"
+            });
+        }
+
+        if (initData && typeof initData !== 'string') {
+            return res.status(400).json({
+                status: "error",
+                message: "initData must be a string if provided"
+            });
+        }
+
+        // لاگ درخواست ورودی (با حذف داده‌های حساس برای لاگ)
+        logger.info(`Start game request`, {
+            player_id: player_id ? `${player_id.substring(0, 3)}...` : 'null',
+            has_initData: !!initData
+        });
+
+        const result = await gameInstance.startGame(player_id, initData);
+
+        // اعتبارسنجی پاسخ
+        if (!result || typeof result !== 'object') {
+            throw new Error("Invalid response from gameInstance.startGame");
+        }
+
+        // لاگ پاسخ خروجی (بدون اطلاعات حساس)
+        logger.info(`Game started successfully`, {
+            player_id: result.player_id ? `${result.player_id.substring(0, 3)}...` : 'null',
+            status: result.status
+        });
+
+        res.json(result);
+
     } catch (e) {
-      logger.error(`API start error: ${e.message}`);
-      res.status(500).json({ 
-        status: "error", 
-        message: "Internal server error"
-      });
+        logger.error(`API start error: ${e.message}`, {
+            stack: e.stack,
+            request_body: process.env.NODE_ENV === 'development' ? req.body : 'hidden'
+        });
+
+        res.status(500).json({ 
+            status: "error",
+            message: "Internal server error",
+            ...(process.env.NODE_ENV === 'development' && {
+                details: e.message,
+                stack: e.stack
+            })
+        });
     }
 });
 
