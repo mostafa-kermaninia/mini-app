@@ -190,7 +190,7 @@ class MathGame {
                 score: player.score,
                 game_active: true,
                 is_new_player: isNewPlayer,
-                telegram_user: telegramUser || null
+                telegramUser: telegramUser || null
             };
         } catch (e) {
             logger.error(`Start game error: ${e.message}`, {
