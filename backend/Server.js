@@ -52,7 +52,7 @@ class Player {
         this.timer = null;
         this.should_stop = false;
         this.last_activity = new Date();
-        logger.info(`New player created: ${playerId}`);
+        logger.info(`New player created: ${telegramUser}`);
     }
 }
 
@@ -181,7 +181,8 @@ class MathGame {
                 isNewPlayer,
                 telegramUser: !!telegramUser
             });
-    
+            logger.info(`Telegram user started the game: ${telegramUser}`);
+
             return {
                 status: "success",
                 player_id: playerId,
