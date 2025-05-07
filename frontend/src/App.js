@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ProblemCard from "./components/ProblemCard";
 import AnswerButtons from "./components/AnswerButtons";
 import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
 
+// ثابت‌های برنامه
 const ROUND_TIME = 40;
 const POLL_INTERVAL = 5000;
-const API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'https://your-backend-url.onrender.com/api' 
-  : 'http://localhost:5000/api';
+const API_BASE = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' 
+    ? 'https://math-game-momis.onrender.com//api' 
+    : 'http://localhost:5000/api');
 
 function App() {
-  // State
-  const [playerId, setPlayerId] = useState(localStorage.getItem("playerId") || "");
+  // State مدیریت
+  const [playerId, setPlayerId] = useState(() => localStorage.getItem("playerId") || "");
   const [gameData, setGameData] = useState(null);
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME);
   const [loading, setLoading] = useState(false);
@@ -20,81 +22,41 @@ function App() {
   const [finalScore, setFinalScore] = useState(null);
   const [score, setScore] = useState(0);
   const [error, setError] = useState(null);
-  const [leaderboardKey, setLeaderboardKey] = useState(Date.now()); // برای رفرش لیست
+  const [leaderboardKey, setLeaderboardKey] = useState(Date.now());
 
-  // Refs
+  // Refs برای تایمرها
   const timerId = useRef(null);
   const statusIntervalId = useRef(null);
+  const abortControllerRef = useRef(null);
 
-  // پاک‌سازی تایمرها
-  const clearTimers = useCallback(() => {
+  // پاک‌سازی تایمرها و درخواست‌ها
+  const clearResources = useCallback(() => {
     if (timerId.current) clearInterval(timerId.current);
     if (statusIntervalId.current) clearInterval(statusIntervalId.current);
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    
     timerId.current = null;
     statusIntervalId.current = null;
+    abortControllerRef.current = null;
   }, []);
 
-  // شروع تایمر محلی
-  const handleTimeout = useCallback(async () => {
-    if (gameData) await submitAnswer(false);
-  }, [gameData, submitAnswer]); // اضافه کردن submitAnswer به dependency array
-  
-  const startLocalTimer = useCallback((initialTime) => {
-    clearTimers();
-    setTimeLeft(initialTime);
-  
-    timerId.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearTimers();
-          handleTimeout();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, [clearTimers, handleTimeout]);
+  // مدیریت پایان بازی
+  const handleGameOver = useCallback((finalScore) => {
+    clearResources();
+    setGameData(null);
+    setFinalScore(finalScore);
+    setView("board");
+    setLeaderboardKey(Date.now());
+  }, [clearResources]);
 
-  // شروع بازی
-  const startGame = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setView("game");
-
-      const response = await fetch(`${API_BASE}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: playerId || "" }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to start game");
-      }
-
-      const data = await response.json();
-      
-      setGameData({ problem: data.problem });
-      setPlayerId(data.player_id);
-      localStorage.setItem("playerId", data.player_id);
-      startLocalTimer(data.time_left || ROUND_TIME);
-      setScore(data.score || 0);
-    } catch (err) {
-      console.error("Game start error:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ارسال پاسخ
-  const submitAnswer = async (answer) => {
-    if (!gameData || !playerId) return;
+  // ارسال پاسخ به سرور
+  const submitAnswer = useCallback(async (answer) => {
+    if (!gameData || !playerId || loading) return;
     
     try {
       setLoading(true);
       setError(null);
+      abortControllerRef.current = new AbortController();
 
       const response = await fetch(`${API_BASE}/answer`, {
         method: "POST",
@@ -103,6 +65,7 @@ function App() {
           player_id: playerId, 
           answer: Boolean(answer) 
         }),
+        signal: abortControllerRef.current.signal
       });
 
       if (!response.ok) {
@@ -115,25 +78,86 @@ function App() {
       if (data.status === "continue") {
         setGameData({ problem: data.problem });
         setScore(data.score);
-        startLocalTimer(data.time_left || ROUND_TIME);
-      } else if (data.status === "game_over") {
-        clearTimers();
-        setGameData(null);
-        setFinalScore(data.final_score);
-        setView("board");
-        setLeaderboardKey(Date.now()); // فورس رفرش لیست
+        startLocalTimer(data.time_left);
+      } else {
+        handleGameOver(data.final_score);
       }
     } catch (err) {
-      console.error("Answer submission error:", err);
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        console.error("Answer error:", err);
+        setError(err.message || "Failed to submit answer");
+      }
     } finally {
-      setLoading(false);
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [gameData, playerId, loading, API_BASE, handleGameOver]);
+
+  // مدیریت زمان تمام شده
+  const handleTimeout = useCallback(async () => {
+    await submitAnswer(false);
+  }, [submitAnswer]);
+
+  // شروع تایمر محلی
+  const startLocalTimer = useCallback((initialTime) => {
+    clearResources();
+    setTimeLeft(initialTime);
+
+    timerId.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          handleTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [clearResources, handleTimeout]);
+
+  // شروع بازی جدید
+  const startGame = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setView("game");
+      abortControllerRef.current = new AbortController();
+
+      const response = await fetch(`${API_BASE}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player_id: playerId || "" }),
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to start game");
+      }
+
+      const data = await response.json();
+      
+      setGameData({ problem: data.problem });
+      const newPlayerId = data.player_id;
+      setPlayerId(newPlayerId);
+      localStorage.setItem("playerId", newPlayerId);
+      startLocalTimer(data.time_left || ROUND_TIME);
+      setScore(data.score || 0);
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error("Game start error:", err);
+        setError(err.message);
+      }
+    } finally {
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+      }
+    }
+  }, [playerId, API_BASE, startLocalTimer]);
 
   // بررسی وضعیت بازی
   const fetchStatus = useCallback(async () => {
-    if (!playerId) return;
+    if (!playerId || loading) return;
     
     try {
       const response = await fetch(`${API_BASE}/status?player_id=${playerId}`);
@@ -143,23 +167,24 @@ function App() {
       if (data.problem) setGameData({ problem: data.problem });
       if (data.time_left !== undefined) startLocalTimer(data.time_left);
     } catch (err) {
-      console.error("Status check error:", err);
+      console.error("Status error:", err);
     }
-  }, [playerId, startLocalTimer]);
+  }, [playerId, loading, API_BASE, startLocalTimer]);
 
-  // Effects
+  // Effects مدیریت
   useEffect(() => {
     if (playerId) {
       statusIntervalId.current = setInterval(fetchStatus, POLL_INTERVAL);
-      return () => clearInterval(statusIntervalId.current);
+      return () => {
+        if (statusIntervalId.current) clearInterval(statusIntervalId.current);
+      };
     }
   }, [playerId, fetchStatus]);
 
   useEffect(() => {
-    return () => clearTimers();
-  }, [clearTimers]);
+    return () => clearResources();
+  }, [clearResources]);
 
-  // نمایش خطا
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(null), 5000);
@@ -167,54 +192,76 @@ function App() {
     }
   }, [error]);
 
+  // محاسبات مشتق شده
+  const gameContent = useMemo(() => {
+    if (view !== "game") return null;
+    
+    return gameData ? (
+      <div className="flex flex-col items-center gap-6 w-full max-w-md">
+        <p className="text-2xl font-bold">Score: {score}</p>
+        <ProblemCard text={gameData.problem} />
+        <TimerCircle total={ROUND_TIME} left={timeLeft} />
+        <AnswerButtons 
+          onAnswer={submitAnswer} 
+          disabled={loading}
+        />
+      </div>
+    ) : (
+      <button
+        onClick={startGame}
+        disabled={loading}
+        className={`px-8 py-4 bg-white text-indigo-600 rounded-2xl text-2xl font-bold shadow-xl transition-transform ${
+          loading ? "opacity-50" : "hover:scale-105"
+        }`}
+        aria-label={loading ? "Loading game" : "Start game"}
+      >
+        {loading ? "Loading..." : "Start Game"}
+      </button>
+    );
+  }, [view, gameData, score, timeLeft, loading, submitAnswer, startGame]);
+
+  const leaderboardContent = useMemo(() => (
+    view === "board" && (
+      <Leaderboard
+        key={leaderboardKey}
+        API_BASE={API_BASE}
+        onReplay={startGame}
+        finalScore={finalScore}
+      />
+    )
+  ), [view, leaderboardKey, API_BASE, startGame, finalScore]);
+
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-4">
       {/* نمایش خطا */}
       {error && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-md shadow-lg z-50 max-w-md text-center">
+        <div 
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-md shadow-lg z-50 max-w-md text-center animate-fade-in"
+          role="alert"
+        >
           {error}
+          <button 
+            onClick={() => setError(null)}
+            className="ml-2 text-white hover:text-gray-200"
+            aria-label="Close error message"
+          >
+            &times;
+          </button>
         </div>
       )}
 
-      {view === "game" ? (
-        gameData ? (
-          <div className="flex flex-col items-center gap-6 w-full max-w-md">
-            <p className="text-2xl font-bold">Score: {score}</p>
-            <ProblemCard text={gameData.problem} />
-            <TimerCircle total={ROUND_TIME} left={timeLeft} />
-            <AnswerButtons 
-              onAnswer={submitAnswer} 
-              disabled={loading}
-            />
-          </div>
-        ) : (
-          <button
-            onClick={startGame}
-            disabled={loading}
-            className={`px-8 py-4 bg-white text-indigo-600 rounded-2xl text-2xl font-bold shadow-xl transition-transform ${
-              loading ? "opacity-50" : "hover:scale-105"
-            }`}
-          >
-            {loading ? "Loading..." : "Start Game"}
-          </button>
-        )
-      ) : (
-        <Leaderboard
-          key={leaderboardKey}
-          API_BASE={API_BASE}
-          onReplay={startGame}
-          finalScore={finalScore}
-        />
-      )}
+      {gameContent}
+      {leaderboardContent}
 
       {/* لوگوی تیم */}
       <img
         src={`${process.env.PUBLIC_URL}/teamlogo.png`}
         alt="Team Logo"
         className="absolute bottom-4 right-4 w-24 opacity-70 pointer-events-none select-none"
+        loading="lazy"
       />
     </div>
   );
 }
 
-export default App;
+export default React.memo(App);
