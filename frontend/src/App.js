@@ -3,6 +3,7 @@ import ProblemCard from "./components/ProblemCard";
 import AnswerButtons from "./components/AnswerButtons";
 import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
+import { v4 as uuidv4 } from 'uuid';
 
 // ثابت‌های برنامه
 const ROUND_TIME = 40;
