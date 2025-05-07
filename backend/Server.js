@@ -240,7 +240,6 @@ app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // API Routes
 
-// قبل از سایر routeها اضافه کنید
 app.post('/api/telegram-auth', (req, res) => {
     try {
       const { initData } = req.body;

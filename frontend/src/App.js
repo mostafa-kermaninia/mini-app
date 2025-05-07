@@ -122,20 +122,19 @@ function App() {
       setLoading(true);
           
       // دریافت داده‌های تلگرام اگر در مینی‌اپ هستیم
-      const initData = window.Telegram?.WebApp?.initData;
-
+      
       
       setError(null);
       setView("game");
       abortControllerRef.current = new AbortController();
       
+      const initData = window.Telegram?.WebApp?.initData;
       const response = await fetch(`${API_BASE}/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           player_id: playerId || "",
-          initData,
-          signal: abortControllerRef.current.signal
+          initData
         }),
       });
 
