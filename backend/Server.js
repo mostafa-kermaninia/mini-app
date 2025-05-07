@@ -128,7 +128,7 @@ class MathGame {
                     telegramUser = validateTelegramData(initData, process.env.BOT_TOKEN);
                     logger.info(`Telegram user validated: ${telegramUser?.id}`);
                 } catch (error) {
-                    logger.warn(`Telegram validation failed: ${error.message}`);
+                    logger.info(`Telegram validation failed: ${error.message}`);
                     // ادامه اجرا حتی اگر اعتبارسنجی شکست خورد
                 }
             }
