@@ -48,6 +48,9 @@ function generate() {
     return { problem, is_correct };
 }
 
+module.exports = {
+    generate
+};
 // مثال استفاده:
 // const question = generate();
 // console.log(question.problem);
