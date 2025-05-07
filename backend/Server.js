@@ -118,8 +118,8 @@ class MathGame {
     }
 
     startGame(playerId = null, initData = null) {
+        let telegramUser = null;
         try {
-            let telegramUser = null;
             let isNewPlayer = false;
     
             // اعتبارسنجی داده‌های تلگرام اگر وجود دارند
