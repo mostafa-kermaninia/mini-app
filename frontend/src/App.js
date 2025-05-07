@@ -12,7 +12,7 @@ import Leaderboard from "./components/Leaderboard";
 // ثابت‌ها
 const ROUND_TIME = 40;
 const POLL_MS = 5000;
-const API_BASE = window.location.origin + '/api'; // استفاده از origin فعلی
+const API_URL = 'https://math-game-momis.onrender.com/api'; // استفاده از origin فعلی
 
 function App() {
   // State

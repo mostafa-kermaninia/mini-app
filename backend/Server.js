@@ -26,7 +26,7 @@ const app = express();
 
 // تنظیمات CORS برای Render
 const allowedOrigins = [
-  'https://math-game-frontend.onrender.com', // آدرس فرانت‌اند در Render
+  'https://math-game-momis.onrender.com', // آدرس فرانت‌اند در Render
   'http://localhost:3000'
 ];
 
