@@ -35,10 +35,14 @@ function App() {
   }, []);
 
   // شروع تایمر محلی
+  const handleTimeout = useCallback(async () => {
+    if (gameData) await submitAnswer(false);
+  }, [gameData, submitAnswer]); // اضافه کردن submitAnswer به dependency array
+  
   const startLocalTimer = useCallback((initialTime) => {
     clearTimers();
     setTimeLeft(initialTime);
-
+  
     timerId.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -50,11 +54,6 @@ function App() {
       });
     }, 1000);
   }, [clearTimers, handleTimeout]);
-
-  // مدیریت زمان تمام شده
-  const handleTimeout = useCallback(async () => {
-    if (gameData) await submitAnswer(false);
-  }, [gameData]);
 
   // شروع بازی
   const startGame = async () => {
