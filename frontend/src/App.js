@@ -9,13 +9,13 @@ const ROUND_TIME = 40;
 const POLL_INTERVAL = 5000;
 const API_BASE = process.env.REACT_APP_API_URL || 
   (process.env.NODE_ENV === 'production' 
-    ? 'https://math-game-momis.onrender.com//api' 
+    ? 'https://math-game-momis.onrender.com/api' 
     : 'http://localhost:5000/api');
 
 function App() {
   // State مدیریت
   const [playerId, setPlayerId] = useState(() => localStorage.getItem("playerId") || "");
-  const [gameData, setGameData] = useState(null);
+  const [problem, setProblem] = useState(null);
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("game");
@@ -43,7 +43,7 @@ function App() {
   // مدیریت پایان بازی
   const handleGameOver = useCallback((finalScore) => {
     clearResources();
-    setGameData(null);
+    setProblem(null);
     setFinalScore(finalScore);
     setView("board");
     setLeaderboardKey(Date.now());
@@ -51,7 +51,7 @@ function App() {
 
   // ارسال پاسخ به سرور
   const submitAnswer = useCallback(async (answer) => {
-    if (!gameData || !playerId || loading) return;
+    if (!problem || !playerId || loading) return;
     
     try {
       setLoading(true);
@@ -76,7 +76,7 @@ function App() {
       const data = await response.json();
 
       if (data.status === "continue") {
-        setGameData({ problem: data.problem });
+        setProblem(data.problem);
         setScore(data.score);
         startLocalTimer(data.time_left);
       } else {
@@ -92,7 +92,7 @@ function App() {
         setLoading(false);
       }
     }
-  }, [gameData, playerId, loading, API_BASE, handleGameOver]);
+  }, [problem, playerId, loading, API_BASE, handleGameOver]);
 
   // مدیریت زمان تمام شده
   const handleTimeout = useCallback(async () => {
@@ -137,7 +137,7 @@ function App() {
 
       const data = await response.json();
       
-      setGameData({ problem: data.problem });
+      setProblem(data.problem);
       const newPlayerId = data.player_id;
       setPlayerId(newPlayerId);
       localStorage.setItem("playerId", newPlayerId);
@@ -155,32 +155,7 @@ function App() {
     }
   }, [playerId, API_BASE, startLocalTimer]);
 
-  // بررسی وضعیت بازی
-  const fetchStatus = useCallback(async () => {
-    if (!playerId || loading) return;
-    
-    try {
-      const response = await fetch(`${API_BASE}/status?player_id=${playerId}`);
-      if (!response.ok) return;
-      
-      const data = await response.json();
-      if (data.problem) setGameData({ problem: data.problem });
-      if (data.time_left !== undefined) startLocalTimer(data.time_left);
-    } catch (err) {
-      console.error("Status error:", err);
-    }
-  }, [playerId, loading, API_BASE, startLocalTimer]);
-
   // Effects مدیریت
-  useEffect(() => {
-    if (playerId) {
-      statusIntervalId.current = setInterval(fetchStatus, POLL_INTERVAL);
-      return () => {
-        if (statusIntervalId.current) clearInterval(statusIntervalId.current);
-      };
-    }
-  }, [playerId, fetchStatus]);
-
   useEffect(() => {
     return () => clearResources();
   }, [clearResources]);
@@ -196,10 +171,10 @@ function App() {
   const gameContent = useMemo(() => {
     if (view !== "game") return null;
     
-    return gameData ? (
+    return problem ? (
       <div className="flex flex-col items-center gap-6 w-full max-w-md">
         <p className="text-2xl font-bold">Score: {score}</p>
-        <ProblemCard text={gameData.problem} />
+        <ProblemCard text={problem} />
         <TimerCircle total={ROUND_TIME} left={timeLeft} />
         <AnswerButtons 
           onAnswer={submitAnswer} 
@@ -218,7 +193,7 @@ function App() {
         {loading ? "Loading..." : "Start Game"}
       </button>
     );
-  }, [view, gameData, score, timeLeft, loading, submitAnswer, startGame]);
+  }, [view, problem, score, timeLeft, loading, submitAnswer, startGame]);
 
   const leaderboardContent = useMemo(() => (
     view === "board" && (
