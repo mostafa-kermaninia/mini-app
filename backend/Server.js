@@ -40,7 +40,7 @@ const logger = {
 };
 
 class Player {
-    constructor(playerId) {
+    constructor(playerId, telegramUser) {
         this.id = playerId;
         this.telegramUser = telegramUser; // اطلاعات کاربر تلگرام
         this.score = 0;
