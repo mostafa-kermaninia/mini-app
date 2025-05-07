@@ -170,7 +170,7 @@ function App() {
   // محاسبات مشتق شده
   const gameContent = useMemo(() => {
     if (view !== "game") return null;
-    
+    print(problem)
     return problem ? (
       <div className="flex flex-col items-center gap-6 w-full max-w-md">
         <p className="text-2xl font-bold">Score: {score}</p>
