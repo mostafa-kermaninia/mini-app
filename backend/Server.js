@@ -261,6 +261,31 @@ app.post('/api/answer', (req, res) => {
     }
 });
 
+// اضافه کردن این Route قبل از خط app.get('*', ...)
+app.get('/api/leaderboard', (req, res) => {
+    try {
+        // تبدیل players به آرایه و مرتب‌سازی بر اساس امتیاز
+        const leaderboard = Object.values(gameInstance.players)
+            .map(player => ({
+                player_id: player.id,
+                score: player.top_score,
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10); // 10 رکورد برتر
+
+        res.json({
+            status: "success",
+            leaderboard
+        });
+    } catch (e) {
+        logger.error(`Leaderboard error: ${e.message}`);
+        res.status(500).json({
+            status: "error",
+            message: "Internal server error"
+        });
+    }
+});
+
 // Route اصلی برای فرانت‌اند
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
