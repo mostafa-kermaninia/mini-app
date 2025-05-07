@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
-const mathEngine = require('./math_engine');
+const mathEngine = require('./math_engine.js');
 
 // تنظیمات پایه
 const app = express();
