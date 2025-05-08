@@ -30,6 +30,7 @@ export default function validateTelegramData(initData, botToken) {
     .digest('hex');
 
   // const isFresh = (Date.now() / 1000) - parseInt(authDate) < 86400;
+  console.log('Telegram User', JSON.parse(userJson));
   console.log('Received hash:', hash);
   console.log('Computed hash:', computedHash);
 
