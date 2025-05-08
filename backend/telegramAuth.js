@@ -10,12 +10,10 @@ export default function validateTelegramData(initData, botToken) {
     throw new Error('Invalid Telegram data');
   }
 
-  // 1. ساخت secretKey از توکن ربات
-  const secretKey = crypto.createHash('sha256')
+  const secretKey = crypto.createHash('sha256') 
     .update(botToken)
     .digest();
 
-  // 2. ساخت data_check_string
   const dataToCheck = [];
   parsedData.forEach((val, key) => {
     if (key !== 'hash') {
@@ -23,21 +21,17 @@ export default function validateTelegramData(initData, botToken) {
     }
   });
 
-  // 3. مرتب‌سازی پارامترها به ترتیب الفبایی
   dataToCheck.sort();
 
-  // 4. ایجاد رشته برای بررسی
   const dataCheckString = dataToCheck.join('\n');
 
-  // 5. محاسبه hash
   const computedHash = crypto.createHmac('sha256', secretKey)
     .update(dataCheckString)
     .digest('hex');
 
-  // 6. بررسی انقضا (حداکثر 1 روز)
-  const isFresh = (Date.now() / 1000) - parseInt(authDate) < 86400;
+  // const isFresh = (Date.now() / 1000) - parseInt(authDate) < 86400;
 
-  if (computedHash !== hash || !isFresh) {
+  if (computedHash !== hash) {
     throw new Error('Invalid Telegram hash or expired');
   }
 
