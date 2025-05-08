@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export default function validateTelegramData(initData, botToken) {
   const parsedData = new URLSearchParams(initData);
   const hash = parsedData.get('hash');
