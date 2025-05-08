@@ -34,6 +34,8 @@ export default function validateTelegramData(initData, botToken) {
   if (computedHash !== hash) {
     throw new Error('Invalid Telegram hash or expired');
   }
+  console.log('Received hash:', hash);
+  console.log('Computed hash:', computedHash);
 
   return JSON.parse(userJson);
 }
