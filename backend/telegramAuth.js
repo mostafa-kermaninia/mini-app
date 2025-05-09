@@ -12,7 +12,8 @@ export default function validateTelegramData(initData, botToken) {
 
   // لاگ تمام پارامترهای دریافتی
   console.log('All Params:', Object.fromEntries(parsedData.entries()));
-  console.log('Init Data:', initData)
+  console.log('Init Data:', initData);
+  console.log('Bot token', botToken);
 
   const secretKey = crypto.createHash('sha256')
     .update(botToken)
