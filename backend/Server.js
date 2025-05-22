@@ -269,35 +269,55 @@ const gameInstance = new MathGame();
 // Route برای سرویس دهی فایل‌های استاتیک
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// API Routes
+// API Routes با تغییرات جدید
 
+// اعتبارسنجی داده‌های تلگرام
 app.post('/api/telegram-auth', (req, res) => {
     try {
-      const { initData } = req.body;
-      
-      if (!initData) {
-        return res.status(400).json({ valid: false });
-      }
-  
-      const user = validateTelegramData(initData, process.env.BOT_TOKEN);
-      
-      return res.json({
-        valid: true,
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          username: user.username
+        const { initData } = req.body;
+        
+        if (!initData) {
+            return res.status(400).json({ 
+                valid: false,
+                message: "initData is required" 
+            });
         }
-      });
-  
+        
+        // اعتبارسنجی داده‌های تلگرام
+        const user = validateTelegramData(initData, process.env.BOT_TOKEN);
+        
+        // لاگ موفقیت آمیز (بدون اطلاعات حساس)
+        logger.info(`Telegram authentication successful for user: ${user.id}`);
+        
+        return res.json({
+            valid: true,
+            user: {
+                id: user.id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                username: user.username,
+                language_code: user.language_code,
+                allows_write_to_pm: user.allows_write_to_pm
+            }
+        });
+        
     } catch (error) {
-      console.error('Telegram auth error:', error);
-      return res.status(401).json({ valid: false });
+        logger.error('Telegram auth error:', {
+            error: error.message,
+            stack: error.stack
+        });
+        
+        return res.status(401).json({ 
+            valid: false,
+            message: "Authentication failed",
+            ...(process.env.NODE_ENV === 'development' && {
+                details: error.message
+            })
+        });
     }
-  });
+});
 
-
+// شروع بازی با احراز هویت
 app.post('/api/start', async (req, res) => {
     try {
         // اعتبارسنجی اولیه بدنه درخواست
@@ -308,7 +328,7 @@ app.post('/api/start', async (req, res) => {
             });
         }
 
-        const { player_id, initData } = req.body;
+        const { player_id, telegram_user } = req.body;
 
         // اعتبارسنجی اولیه پارامترها
         if (player_id && typeof player_id !== 'string') {
@@ -318,20 +338,32 @@ app.post('/api/start', async (req, res) => {
             });
         }
 
-        if (initData && typeof initData !== 'string') {
+        if (telegram_user && typeof telegram_user !== 'object') {
             return res.status(400).json({
                 status: "error",
-                message: "initData must be a string if provided"
+                message: "telegram_user must be an object if provided"
             });
         }
 
-        // لاگ درخواست ورودی (با حذف داده‌های حساس برای لاگ)
+        // لاگ درخواست ورودی (با حذف داده‌های حساس)
         logger.info(`Start game request`, {
             player_id: player_id ? `${player_id.substring(0, 3)}...` : 'null',
-            has_initData: !!initData
+            has_telegram_user: !!telegram_user
         });
 
-        const result = await gameInstance.startGame(player_id, initData);
+        // بررسی احراز هویت کاربر تلگرام
+        if (telegram_user) {
+            const existingPlayer = gameInstance.getPlayerByTelegramId(telegram_user.id);
+            if (existingPlayer && existingPlayer.player_id !== player_id) {
+                logger.warn(`Telegram user ${telegram_user.id} already exists with different player_id`);
+                return res.status(409).json({
+                    status: "error",
+                    message: "This Telegram account is already linked to another player"
+                });
+            }
+        }
+
+        const result = await gameInstance.startGame(player_id, telegram_user);
 
         // اعتبارسنجی پاسخ
         if (!result || typeof result !== 'object') {
@@ -344,25 +376,31 @@ app.post('/api/start', async (req, res) => {
             status: result.status
         });
 
-        res.json(result);
+        res.json({
+            ...result,
+            // اضافه کردن اطلاعات کاربر تلگرام به پاسخ
+            ...(telegram_user && { telegram_user })
+        });
 
     } catch (e) {
         logger.error(`API start error: ${e.message}`, {
             stack: e.stack,
-            request_body: process.env.NODE_ENV === 'development' ? req.body : 'hidden'
+            ...(process.env.NODE_ENV === 'development' && {
+                request_body: req.body
+            })
         });
 
         res.status(500).json({ 
             status: "error",
             message: "Internal server error",
             ...(process.env.NODE_ENV === 'development' && {
-                details: e.message,
-                stack: e.stack
+                details: e.message
             })
         });
     }
 });
 
+// ارسال پاسخ
 app.post('/api/answer', (req, res) => {
     try {
         const { player_id, answer } = req.body;
@@ -374,38 +412,92 @@ app.post('/api/answer', (req, res) => {
             });
         }
 
+        // اعتبارسنجی نوع داده‌ها
+        if (typeof player_id !== 'string') {
+            return res.status(400).json({
+                status: "error",
+                message: "player_id must be a string"
+            });
+        }
+
+        if (typeof answer !== 'boolean') {
+            return res.status(400).json({
+                status: "error",
+                message: "answer must be a boolean"
+            });
+        }
+
         const result = gameInstance.checkAnswer(player_id, answer);
+        
+        // لاگ نتیجه (بدون اطلاعات حساس)
+        logger.info(`Answer submitted`, {
+            player_id: `${player_id.substring(0, 3)}...`,
+            is_correct: result.is_correct
+        });
+
         res.json(result);
     } catch (e) {
-        logger.error(`API answer error: ${e.message}`);
+        logger.error(`API answer error: ${e.message}`, {
+            stack: e.stack,
+            ...(process.env.NODE_ENV === 'development' && {
+                request_body: req.body
+            })
+        });
+        
         res.status(500).json({ 
             status: "error", 
-            message: "Internal server error" 
+            message: "Internal server error",
+            ...(process.env.NODE_ENV === 'development' && {
+                details: e.message
+            })
         });
     }
 });
 
-// اضافه کردن این Route قبل از خط app.get('*', ...)
+// لیست برترین‌ها با بهبودها
 app.get('/api/leaderboard', (req, res) => {
     try {
-        // تبدیل players به آرایه و مرتب‌سازی بر اساس امتیاز
-        const leaderboard = Object.values(gameInstance.players)
+        // دریافت پارامترهای اختیاری
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = parseInt(req.query.offset) || 0;
+        
+        // تبدیل players به آرایه و مرتب‌سازی
+        const allPlayers = Object.values(gameInstance.players)
             .map(player => ({
                 player_id: player.id,
                 score: player.top_score,
+                ...(player.telegram_user && {
+                    username: player.telegram_user.username,
+                    first_name: player.telegram_user.first_name
+                })
             }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10); // 10 رکورد برتر
-
+            .sort((a, b) => b.score - a.score);
+        
+        // اعمال pagination
+        const leaderboard = allPlayers.slice(offset, offset + limit);
+        const total = allPlayers.length;
+        
         res.json({
             status: "success",
-            leaderboard
+            leaderboard,
+            meta: {
+                total,
+                limit,
+                offset,
+                has_more: offset + limit < total
+            }
         });
     } catch (e) {
-        logger.error(`Leaderboard error: ${e.message}`);
+        logger.error(`Leaderboard error: ${e.message}`, {
+            stack: e.stack
+        });
+        
         res.status(500).json({
             status: "error",
-            message: "Internal server error"
+            message: "Internal server error",
+            ...(process.env.NODE_ENV === 'development' && {
+                details: e.message
+            })
         });
     }
 });
