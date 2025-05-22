@@ -1,7 +1,7 @@
 module.exports = {
   plugins: {
-    'tailwindcss/nesting': {}, // This is optional, include if you use Tailwind's nesting features
-    '@tailwindcss/postcss': {}, // This is the important change
+    'tailwindcss/nesting': {},
+    'tailwindcss': {}, // <--- برای Tailwind v3، باید 'tailwindcss': {} باشد
     'autoprefixer': {},
   },
 };
