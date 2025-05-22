@@ -287,7 +287,7 @@ app.post('/api/telegram-auth', (req, res) => {
         const user = validateTelegramData(initData, process.env.BOT_TOKEN);
         
         // لاگ موفقیت آمیز (بدون اطلاعات حساس)
-        logger.info(`Telegram authentication successful for user: ${user.id}`);
+        logger.info(`Telegram authentication successful for user: ${user}`);
         
         return res.json({
             valid: true,
