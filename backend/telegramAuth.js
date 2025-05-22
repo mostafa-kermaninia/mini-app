@@ -1,6 +1,6 @@
 import { validate } from "@tma.js/init-data-node";
 
-export const validateTelegramData = (rawInitData, bot_token) => {
+export default function validateTelegramData(rawInitData, bot_token) {
   const initData = new URLSearchParams(rawInitData);
   // const hash = parsedData.get('hash');
   // const authDate = parsedData.get('auth_date');
@@ -21,4 +21,3 @@ export const validateTelegramData = (rawInitData, bot_token) => {
     };
   }
 };
-
