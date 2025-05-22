@@ -8,6 +8,7 @@ export default function validateTelegramData(rawInitData, bot_token) {
 
   try {
     validate(initData, bot_token);
+    console.log(userJson);
     return {
       valid: true,
       userJson,
