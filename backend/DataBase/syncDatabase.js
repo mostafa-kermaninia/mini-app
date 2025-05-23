@@ -1,13 +1,12 @@
-// syncDatabase.js
-const sequelize = require('./database');
-const User = require('./models/User');
-const Score = require('./models/Score');
-const Reward = require('./models/Reward');
+// Import the db object from models/index.js which includes sequelize and all models
+const { sequelize, User, Score, Reward } = require('./models'); // Path to models/index.js
 
-// همگام‌سازی مدل‌ها با دیتابیس
-sequelize.sync({ force: false })  // force: true برای پاک کردن جداول و بازسازی آن‌ها
+// Synchronize all defined models to the database.
+// { force: false } will not drop tables if they already exist.
+// { alter: true } will attempt to alter existing tables to match the model (use with caution in production).
+sequelize.sync({ force: false, alter: true })
   .then(() => {
-    console.log('Database & tables created!');
+    console.log('Database & tables checked/altered successfully!');
   })
   .catch((error) => {
     console.error('Error syncing database:', error);
