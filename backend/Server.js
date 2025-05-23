@@ -13,7 +13,8 @@ const app = express();
 // تنظیمات CORS برای Render
 const allowedOrigins = [
     'https://math-game-momis.onrender.com', // آدرس فرانت‌اند در Render
-    'http://localhost:5000'
+    'http://localhost:5000',
+    'https://solid-games-do.loca.lt'
 ];
 
 const corsOptions = {

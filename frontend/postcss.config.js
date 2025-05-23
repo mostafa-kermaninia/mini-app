@@ -1,6 +1,7 @@
 module.exports = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    'tailwindcss/nesting': {},
+    'tailwindcss': {}, // <--- برای Tailwind v3، باید 'tailwindcss': {} باشد
+    'autoprefixer': {},
   },
-}
+};

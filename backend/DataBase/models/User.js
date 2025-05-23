@@ -1,25 +1,35 @@
-// models/User.js
+// Import DataTypes from Sequelize and the sequelize instance
 const { DataTypes } = require("sequelize");
-const sequelize = require("../database"); // اتصال به دیتابیس
+const sequelize = require("../database"); // Path to the sequelize instance from database.js
 
+// Define the User model
 const User = sequelize.define(
-    "User",
+    "User", // Model name
     {
+        telegramId: {
+            type: DataTypes.BIGINT,    // Use BIGINT for large Telegram IDs
+            allowNull: false,          // This field cannot be null
+            unique: true,              // Must be unique across the table
+            primaryKey: true,          // This field serves as the primary key
+        },
         username: {
             type: DataTypes.STRING,
-            allowNull: false,
-            unique: true, // هر کاربر باید یک نام کاربری یکتا داشته باشد
+            allowNull: true,           // Telegram users might not have a username
         },
-        // email: {
-        //     type: DataTypes.STRING,
-        //     allowNull: true,
-        //     unique: true, // اگر ایمیل وارد شود، باید یکتا باشد
-        // },
+        firstName: {
+            type: DataTypes.STRING,
+            allowNull: false,          // Telegram usually provides a first name
+        },
+        lastName: {
+            type: DataTypes.STRING,
+            allowNull: true,           // Last name is optional on Telegram
+        },
     },
     {
-        tableName: "users",
-        timestamps: true, // ذخیره‌سازی تاریخ و زمان ایجاد و بروزرسانی
+        tableName: "users",         // Explicitly define the table name
+        timestamps: true,           // Automatically add createdAt and updatedAt fields
     }
 );
 
+// Export the User model
 module.exports = User;

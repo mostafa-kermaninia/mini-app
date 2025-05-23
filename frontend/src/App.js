@@ -11,7 +11,7 @@ const POLL_INTERVAL = 5000;
 const API_BASE = process.env.REACT_APP_API_URL || 
   (process.env.NODE_ENV === 'production' 
     ? 'https://math-game-momis.onrender.com/api' 
-    : 'http://localhost:5000/api');
+    : 'https://quiet-pianos-crash.loca.lt/api');
 
 function App() {
   // State مدیریت
