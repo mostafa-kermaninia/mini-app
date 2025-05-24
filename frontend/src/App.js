@@ -5,13 +5,9 @@ import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
 import { v4 as uuidv4 } from 'uuid';
 
-// ثابت‌های برنامه
+// ثابت‌های برنامه  
 const ROUND_TIME = 40;
-const POLL_INTERVAL = 5000;
-const API_BASE = process.env.REACT_APP_API_URL || 
-  (process.env.NODE_ENV === 'production' 
-    ? 'https://math-game-momis.onrender.com/api' 
-    : 'https://quiet-pianos-crash.loca.lt/api');
+const API_BASE =  'https://math-backend.loca.lt/api'; //backkkkkkkkk
 
 function App() {
   // State مدیریت
@@ -67,26 +63,35 @@ function App() {
         return true;
       }
 
-      const initData = window.Telegram.WebApp.initData;
+      const initData = window.Telegram.WebApp.initData || '';
       if (!initData) {
         throw new Error('Telegram authentication data not found');
       }
 
-      const response = await fetch(`${API_BASE}/telegram-auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData }),
-      });
+
+    // ارسال درخواست به سرور
+    const response = await fetch(`${API_BASE}/telegram-auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ initData }) // ارسال به صورت صحیح
+    });
 
       if (!response.ok) {
+        console.log(response.json())
+        console.log("test")
         throw new Error('Authentication failed');
       }
 
       const data = await response.json();
       
-      if (!data.valid) {
-        throw new Error('Invalid Telegram user');
-      }
+      // if (!data.valid) {
+      //   throw new Error('Invalid Telegram user');
+      // }
+
+      if (!data?.valid) {
+        throw new Error(data?.message || 'Invalid Telegram user');
+      } 
+
 
       // ذخیره اطلاعات کاربر و اجازه دسترسی
       setTelegramUser(data.user);
@@ -102,7 +107,7 @@ function App() {
     } finally {
       setAuthLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   // ارسال پاسخ به سرور
   const submitAnswer = useCallback(async (answer) => {
@@ -147,7 +152,7 @@ function App() {
         setLoading(false);
       }
     }
-  }, [problem, playerId, loading, API_BASE, handleGameOver]);
+  }, [problem, playerId, loading, handleGameOver]);
 
   // مدیریت زمان تمام شده
   const handleTimeout = useCallback(async () => {
@@ -239,7 +244,7 @@ function App() {
         setLoading(false);
       }
     }
-  }, [playerId, API_BASE, startLocalTimer, isAuthenticated, telegramUser]);
+  }, [playerId, startLocalTimer, isAuthenticated, telegramUser]);
 
   // Effects مدیریت
   useEffect(() => {
@@ -345,7 +350,7 @@ function App() {
         finalScore={finalScore}
       />
     )
-  ), [view, leaderboardKey, API_BASE, startGame, finalScore]);
+  ), [view, leaderboardKey, startGame, finalScore]);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-4">
