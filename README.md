@@ -8,8 +8,7 @@ T1:
 PS D:\GitHub\mini-app\backend> node Server.js
 
 T2:
-PS D:\GitHub\mini-app> lt --port 10000 --subdomain math-backend 
---local-https false
+PS D:\GitHub\mini-app> lt --port 10000 --subdomain math-backend --local-https false
 
 T3:
 PS D:\GitHub\mini-app\frontend>npm start
