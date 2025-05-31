@@ -3,6 +3,10 @@ D:\GitHub\mini-app\backend\.env :
 PORT=10000
 BOT_TOKEN= "SALAM"
 
+T0:
+PS D:\GitHub\mini-app\backend> npm install
+PS D:\GitHub\mini-app\frontend> npm install
+passwoed : https://whatismyipaddress.com/
 
 T1:
 PS D:\GitHub\mini-app\backend> node Server.js
