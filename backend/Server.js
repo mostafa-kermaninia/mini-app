@@ -12,6 +12,7 @@ const fetch = require('node-fetch');
 const validateTelegramData = require('./telegramAuth').default;
 
 
+
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
