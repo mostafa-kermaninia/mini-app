@@ -1,19 +1,13 @@
-require('dotenv').config();
-// console.log("BOT_TOKEN is:", process.env.BOT_TOKEN);
-// console.log("hiiiiiiiiiiiiiii");
-
-const express = require('express');
-const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const mathEngine = require('./math_engine.js');
-const crypto = require('crypto');
-const fetch = require('node-fetch');
-const validateTelegramData = require('./telegramAuth').default;
-const jwt = require('jsonwebtoken')
-// import jwt from 'jsonwebtoken'; // تغییر مهم اینجا
-
-
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const { v4: uuidv4 } = require("uuid");
+const path = require("path");
+const mathEngine = require("./math_engine.js");
+const crypto = require("crypto");
+const validateTelegramData = require("./telegramAuth").default;
+const jwt = require("jsonwebtoken");
+const { userInfo } = require("os");
 
 // تنظیمات پایه
 const app = express();
@@ -21,54 +15,41 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const allowedOrigins = [
-    'https://my-frontend.loca.lt',  // fronnnnnnnnnnnnnnnt
-    'https://math-backend.loca.lt',
-    'https://web.telegram.org' // اضافه کردن آدرس تلگرام
+    "https://my-frontend.loca.lt",
+    "https://math-backend.loca.lt",
+    "https://web.telegram.org",
 ];
-// Add this middleware
+
+// Middleware برای CORS
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", allowedOrigins);
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
-  });
-// const corsOptions = {
-//   origin: function(origin, callback) {
-//     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-//       callback(null, true);
-//     } else {
-//       console.warn(`Blocked by CORS: ${origin}`);
-//       callback(new Error('Not allowed by CORS'));
-//     }
-//   },
-//   methods: ['GET', 'POST', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
-//   credentials: true
-// };
+});
 
 const corsOptions = {
     origin: allowedOrigins,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-request-id"],
     credentials: true,
-    optionsSuccessStatus: 200 // اضافه کردن این خط
-  };
-  
-  // اضافه کردن هندلر OPTIONS برای همه مسیرها
-  app.options('*', cors(corsOptions));
+    optionsSuccessStatus: 200,
+};
 
+app.options("*", cors(corsOptions));
 app.use(cors(corsOptions));
-app.use(express.json());
 
 // بهبود سیستم لاگینگ
 const logger = {
-    info: (message) => console.log(`[INFO] ${new Date().toISOString()} - ${message}`),
-    error: (message) => console.error(`[ERROR] ${new Date().toISOString()} - ${message}`)
+    info: (message) =>
+        console.log(`[INFO] ${new Date().toISOString()} - ${message}`),
+    error: (message) =>
+        console.error(`[ERROR] ${new Date().toISOString()} - ${message}`),
 };
 
 class Player {
-    constructor(playerId, telegramUser) {
+    constructor(playerId, jwtPayload) {
         this.id = playerId;
-        this.telegramUser = telegramUser; // اطلاعات کاربر تلگرام
+        this.jwtPayload = jwtPayload; // اطلاعات کاربر از توکن JWT
         this.score = 0;
         this.top_score = 0;
         this.time_left = 40;
@@ -78,7 +59,7 @@ class Player {
         this.timer = null;
         this.should_stop = false;
         this.last_activity = new Date();
-        logger.info(`New player created: ${telegramUser}`);
+        logger.info(`New player created: ${jwtPayload?.userId}`);
     }
 }
 
@@ -86,7 +67,7 @@ class MathGame {
     constructor() {
         this.players = {};
         this.total_time = 40;
-        this.cleanup_interval = 600000; // 10 minutes in milliseconds
+        this.cleanup_interval = 600000;
         this.startCleanup();
         logger.info("MathGame initialized");
     }
@@ -103,9 +84,12 @@ class MathGame {
 
     cleanupInactivePlayers() {
         const now = new Date();
-        Object.keys(this.players).forEach(pid => {
+        Object.keys(this.players).forEach((pid) => {
             try {
-                if ((now - this.players[pid].last_activity) > this.cleanup_interval) {
+                if (
+                    now - this.players[pid].last_activity >
+                    this.cleanup_interval
+                ) {
                     if (this.players[pid].timer) {
                         this.players[pid].should_stop = true;
                         clearTimeout(this.players[pid].timer);
@@ -143,71 +127,53 @@ class MathGame {
         player.timer = setTimeout(tick, 1000);
     }
 
-    startGame(playerId = null, initData = null) {
-        let telegramUser = null;
+    startGame(playerId = null, jwtPayload = null) {
         try {
             let isNewPlayer = false;
-    
-            // اعتبارسنجی داده‌های تلگرام اگر وجود دارند
-            if (initData) {
-                try {
-                    telegramUser = validateTelegramData(initData, process.env.BOT_TOKEN);
-                    logger.info(`Telegram user validated: ${telegramUser?.id}`);
-                } catch (error) {
-                    logger.info(`Telegram validation failed: ${error.message}`);
-                    // ادامه اجرا حتی اگر اعتبارسنجی شکست خورد
-                }
-            }
-    
-            // تولید شناسه بازیکن جدید اگر وجود نداشته باشد
             playerId = playerId || uuidv4();
-    
-            // مدیریت بازیکن موجود یا جدید
+
             if (this.players[playerId]) {
                 const player = this.players[playerId];
-                
-                // به روزرسانی اطلاعات تلگرام اگر وجود دارد
-                if (telegramUser) {
-                    player.telegramUser = telegramUser;
+
+                // به روزرسانی اطلاعات کاربر اگر توکن جدید وجود دارد
+                if (jwtPayload) {
+                    player.jwtPayload = jwtPayload;
                 }
-                
-                // تایمر قبلی را متوقف کن
+
                 if (player.timer) {
                     clearTimeout(player.timer);
                 }
             } else {
-                this.players[playerId] = new Player(playerId, telegramUser);
+                this.players[playerId] = new Player(playerId, jwtPayload);
                 isNewPlayer = true;
             }
-    
+
             const player = this.players[playerId];
-            
+
             // تنظیمات اولیه بازی
             player.game_active = true;
             player.time_left = this.total_time;
-            
-            // فقط برای بازیکنان جدید، امتیاز را ریست کن
+            player.score = 0;
+
             if (isNewPlayer) {
                 player.top_score = 0;
-                player.score = 0;
             }
-            
+
             player.should_stop = false;
             player.last_activity = new Date();
-    
+
             // تولید مسئله جدید
             const { problem, is_correct } = mathEngine.generate();
             player.current_problem = problem;
             player.current_answer = is_correct;
-    
+
             // شروع تایمر
             this.runTimer(playerId);
-    
+
             logger.info(`Game started for ${playerId}`, {
                 isNewPlayer,
-                telegramUser: !!telegramUser
+                userId: jwtPayload?.userId,
             });
-            logger.info(`Telegram user started the game: ${telegramUser}`);
 
             return {
                 status: "success",
@@ -217,16 +183,25 @@ class MathGame {
                 score: player.score,
                 game_active: true,
                 is_new_player: isNewPlayer,
-                telegramUser: telegramUser || null
+                user: jwtPayload
+                    ? {
+                          userId: jwtPayload.userId,
+                          firstName: jwtPayload.firstName,
+                          lastName: jwtPayload.lastName,
+                          username: jwtPayload.username,
+                          userImage: jwtPayload.userImage,
+                      }
+                    : null,
             };
         } catch (e) {
             logger.error(`Start game error: ${e.message}`, {
-                stack: e.stack
+                stack: e.stack,
             });
             return {
                 status: "error",
                 message: "Failed to start game",
-                details: process.env.NODE_ENV === 'development' ? e.message : null
+                details:
+                    process.env.NODE_ENV === "development" ? e.message : null,
             };
         }
     }
@@ -236,7 +211,7 @@ class MathGame {
             if (!this.players[playerId]) {
                 return {
                     status: "error",
-                    message: "Player not found. Start a new game."
+                    message: "Player not found. Start a new game.",
                 };
             }
 
@@ -246,11 +221,11 @@ class MathGame {
             if (!player.game_active) {
                 return {
                     status: "game_over",
-                    final_score: player.score
+                    final_score: player.score,
                 };
             }
 
-            const is_correct = (userAnswer === player.current_answer);
+            const is_correct = userAnswer === player.current_answer;
 
             if (is_correct) {
                 player.time_left = Math.min(40, player.time_left + 5);
@@ -264,7 +239,7 @@ class MathGame {
                 player.game_active = false;
                 return {
                     status: "game_over",
-                    final_score: player.score
+                    final_score: player.score,
                 };
             }
 
@@ -278,252 +253,214 @@ class MathGame {
                 time_left: player.time_left,
                 score: player.score,
                 feedback: is_correct ? "correct" : "wrong",
-                game_active: true
+                game_active: true,
             };
         } catch (e) {
             logger.error(`Check answer error: ${e.message}`);
             return {
                 status: "error",
-                message: e.message
+                message: e.message,
             };
         }
     }
-    getPlayerByTelegramId(telegramId) {
-        return Object.values(this.players).find((p) => p.telegramUser?.id === telegramId);
-      }
+
+    getPlayerById(playerId) {
+        return this.players[playerId];
+    }
 }
 
 const gameInstance = new MathGame();
 
+// Middleware احراز هویت با JWT
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+        return res.status(401).json({ error: "Authentication token required" });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            logger.error(`JWT verification failed: ${err.message}`);
+            return res.status(403).json({ error: "Invalid or expired token" });
+        }
+
+        req.user = decoded; // ذخیره اطلاعات کاربر در درخواست
+        next();
+    });
+};
+
 // Route برای سرویس دهی فایل‌های استاتیک
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+app.use(express.static(path.join(__dirname, "../frontend/build")));
 
-// API Routes با تغییرات جدید
+// API Routes
 
-// اعتبارسنجی داده‌های تلگرام
-app.post('/api/telegram-auth', (req, res) => {
+// اعتبارسنجی داده‌های تلگرام و تولید JWT
+app.post("/api/telegram-auth", (req, res) => {
     try {
-        console.log("Incoming request body:", req.body); // اضافه کردن این خط
         const { initData } = req.body;
         if (!initData) {
-            console.error("No initData provided"); // اصلاح شد
             logger.error("[Telegram Auth] No initData provided");
-            return res.status(400).json({ 
+            return res.status(400).json({
                 valid: false,
-                message: "initData is required" 
+                message: "initData is required",
             });
         }
-        console.log("Using BOT_TOKEN:", process.env.BOT_TOKEN ? "Exists" : "Missing");
+
         // اعتبارسنجی داده‌های تلگرام
-        const user = validateTelegramData(initData, process.env.BOT_TOKEN);
-        
+        const userData = validateTelegramData(initData, process.env.BOT_TOKEN);
+
         // ساخت JWT
         const token = jwt.sign(
             {
-            userId: user.id,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            username: user.username,
-            userImage: user.photo_url
+                userId: userData.id,
+                firstName: userData.first_name,
+                lastName: userData.last_name,
+                username: userData.username,
+                userImage: userData.photo_url,
             },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' } // انقضا توکن
+            { expiresIn: "1d" } // انقضا توکن
         );
 
         // لاگ موفقیت آمیز (بدون اطلاعات حساس)
-        logger.info(`Telegram authentication successful for user: ${user.id}`);
-        
+        logger.info(
+            `Telegram authentication successful for user: ${userData.id}`
+        );
+
         return res.json({
             valid: true,
             user: {
-                id: user.id,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                username: user.username,
-                language_code: user.language_code,
-                allows_write_to_pm: user.allows_write_to_pm
+                id: userData.id,
+                first_name: userData.first_name,
+                last_name: userData.last_name,
+                username: userData.username,
+                language_code: userData.language_code,
+                allows_write_to_pm: userData.allows_write_to_pm,
+                photo_url: userData.photo_url,
             },
-            token: token
+            token: token,
         });
-        
     } catch (error) {
-        logger.error('Telegram auth error:', {
+        logger.error("Telegram auth error:", {
             error: error.message,
             stack: error.stack,
-            initData: req.body?.initData, // مراقب باشید اطلاعات حساس را لاگ نکنید
-
         });
-        
-        return res.status(401).json({ 
+
+        return res.status(401).json({
             valid: false,
             message: "Authentication failed",
-            // ...(process.env.NODE_ENV === 'development' && {
-            //     details: error.message
-            // })
         });
     }
 });
 
-// شروع بازی با احراز هویت
-app.post('/api/start', async (req, res) => {
+// شروع بازی با احراز هویت JWT
+app.post("/api/start", authenticateToken, async (req, res) => {
     try {
-        // اعتبارسنجی اولیه بدنه درخواست
-        if (!req.body || typeof req.body !== 'object') {
-            return res.status(400).json({
-                status: "error",
-                message: "Invalid request body"
-            });
-        }
+        const { player_id } = req.body;
+        const user = req.user; // اطلاعات کاربر از توکن
 
-        const { player_id, telegram_user } = req.body;
+        logger.info(`Start game request for user: ${user.userId}`);
 
-        // اعتبارسنجی اولیه پارامترها
-        if (player_id && typeof player_id !== 'string') {
-            return res.status(400).json({
-                status: "error",
-                message: "player_id must be a string if provided"
-            });
-        }
-
-        if (telegram_user && typeof telegram_user !== 'object') {
-            return res.status(400).json({
-                status: "error",
-                message: "telegram_user must be an object if provided"
-            });
-        }
-
-        // لاگ درخواست ورودی (با حذف داده‌های حساس)
-        logger.info(`Start game request`, {
-            player_id: player_id ? `${player_id.substring(0, 3)}...` : 'null',
-            has_telegram_user: !!telegram_user
+        const result = await gameInstance.startGame(player_id, {
+            userId: user.userId,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+            userImage: user.userImage,
         });
 
-        // بررسی احراز هویت کاربر تلگرام
-        if (telegram_user) {
-            const existingPlayer = gameInstance.getPlayerByTelegramId(telegram_user.id);
-            if (existingPlayer && existingPlayer.player_id !== player_id) {
-                logger.warn(`Telegram user ${telegram_user.id} already exists with different player_id`);
-                return res.status(409).json({
-                    status: "error",
-                    message: "This Telegram account is already linked to another player"
-                });
-            }
-        }
-
-        const result = await gameInstance.startGame(player_id, telegram_user);
-
-        // اعتبارسنجی پاسخ
-        if (!result || typeof result !== 'object') {
-            throw new Error("Invalid response from gameInstance.startGame");
-        }
-
-        // لاگ پاسخ خروجی (بدون اطلاعات حساس)
-        logger.info(`Game started successfully`, {
-            player_id: result.player_id ? `${result.player_id.substring(0, 3)}...` : 'null',
-            status: result.status
-        });
-
-        res.json({
-            ...result,
-            // اضافه کردن اطلاعات کاربر تلگرام به پاسخ
-            ...(telegram_user && { telegram_user })
-        });
-
+        res.json(result);
     } catch (e) {
         logger.error(`API start error: ${e.message}`, {
             stack: e.stack,
-            ...(process.env.NODE_ENV === 'development' && {
-                request_body: req.body
-            })
+            ...(process.env.NODE_ENV === "development" && {
+                request_body: req.body,
+            }),
         });
 
-        res.status(500).json({ 
+        res.status(500).json({
             status: "error",
             message: "Internal server error",
-            ...(process.env.NODE_ENV === 'development' && {
-                details: e.message
-            })
+            ...(process.env.NODE_ENV === "development" && {
+                details: e.message,
+            }),
         });
     }
 });
 
-// ارسال پاسخ
-app.post('/api/answer', (req, res) => {
+// ارسال پاسخ با احراز هویت JWT
+app.post("/api/answer", authenticateToken, (req, res) => {
     try {
         const { player_id, answer } = req.body;
-        
+        const user = req.user; // اطلاعات کاربر از توکن
+
         if (!player_id || answer === undefined) {
-            return res.status(400).json({ 
-                status: "error", 
-                message: "player_id and answer are required" 
+            return res.status(400).json({
+                status: "error",
+                message: "player_id and answer are required",
             });
         }
 
-        // اعتبارسنجی نوع داده‌ها
-        if (typeof player_id !== 'string') {
-            return res.status(400).json({
+        // اعتبارسنجی مالکیت بازیکن
+        const player = gameInstance.getPlayerById(player_id);
+        if (!player) {
+            return res.status(404).json({
                 status: "error",
-                message: "player_id must be a string"
+                message: "Player not found",
             });
         }
 
-        if (typeof answer !== 'boolean') {
-            return res.status(400).json({
+        if (player.jwtPayload?.userId !== user.userId) {
+            return res.status(403).json({
                 status: "error",
-                message: "answer must be a boolean"
+                message: "Unauthorized access to player",
             });
         }
 
         const result = gameInstance.checkAnswer(player_id, answer);
-        
-        // لاگ نتیجه (بدون اطلاعات حساس)
-        logger.info(`Answer submitted`, {
-            player_id: `${player_id.substring(0, 3)}...`,
-            is_correct: result.is_correct
-        });
 
         res.json(result);
     } catch (e) {
         logger.error(`API answer error: ${e.message}`, {
             stack: e.stack,
-            ...(process.env.NODE_ENV === 'development' && {
-                request_body: req.body
-            })
+            ...(process.env.NODE_ENV === "development" && {
+                request_body: req.body,
+            }),
         });
-        
-        res.status(500).json({ 
-            status: "error", 
+
+        res.status(500).json({
+            status: "error",
             message: "Internal server error",
-            ...(process.env.NODE_ENV === 'development' && {
-                details: e.message
-            })
+            ...(process.env.NODE_ENV === "development" && {
+                details: e.message,
+            }),
         });
     }
 });
 
-// لیست برترین‌ها با بهبودها
-app.get('/api/leaderboard', (req, res) => {
+// لیست برترین‌ها
+app.get("/api/leaderboard", (req, res) => {
     try {
-        // دریافت پارامترهای اختیاری
         const limit = parseInt(req.query.limit) || 10;
         const offset = parseInt(req.query.offset) || 0;
-        
-        // تبدیل players به آرایه و مرتب‌سازی
+
         const allPlayers = Object.values(gameInstance.players)
-            .map(player => ({
+            .map((player) => ({
                 player_id: player.id,
                 score: player.top_score,
-                ...(player.telegram_user && {
-                    username: player.telegram_user.username,
-                    first_name: player.telegram_user.first_name
-                })
+                ...(player.jwtPayload && {
+                    username: player.jwtPayload.username,
+                    first_name: player.jwtPayload.firstName,
+                    user_image: player.jwtPayload.userImage,
+                }),
             }))
             .sort((a, b) => b.score - a.score);
-        
-        // اعمال pagination
+
         const leaderboard = allPlayers.slice(offset, offset + limit);
         const total = allPlayers.length;
-        
+
         res.json({
             status: "success",
             leaderboard,
@@ -531,32 +468,32 @@ app.get('/api/leaderboard', (req, res) => {
                 total,
                 limit,
                 offset,
-                has_more: offset + limit < total
-            }
+                has_more: offset + limit < total,
+            },
         });
     } catch (e) {
         logger.error(`Leaderboard error: ${e.message}`, {
-            stack: e.stack
+            stack: e.stack,
         });
-        
+
         res.status(500).json({
             status: "error",
             message: "Internal server error",
-            ...(process.env.NODE_ENV === 'development' && {
-                details: e.message
-            })
+            ...(process.env.NODE_ENV === "development" && {
+                details: e.message,
+            }),
         });
     }
 });
 
 // Route اصلی برای فرانت‌اند
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
 });
 
-// پورت از متغیر محیطی Render استفاده می‌کند
+// پورت از متغیر محیطی استفاده می‌کند
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
-    logger.info(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
+    logger.info(`Allowed CORS origins: ${allowedOrigins.join(", ")}`);
 });
