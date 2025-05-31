@@ -4,10 +4,8 @@ const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 const mathEngine = require("./math_engine.js");
-const crypto = require("crypto");
 const validateTelegramData = require("./telegramAuth").default;
 const jwt = require("jsonwebtoken");
-const { userInfo } = require("os");
 
 // تنظیمات پایه
 const app = express();
@@ -65,7 +63,8 @@ class Player {
 
 class MathGame {
     constructor() {
-        this.players = {};
+        this.players = {}; // playerId -> Player
+        this.userToPlayerMap = {}; // userId -> playerId
         this.total_time = 40;
         this.cleanup_interval = 600000;
         this.startCleanup();
@@ -90,9 +89,16 @@ class MathGame {
                     now - this.players[pid].last_activity >
                     this.cleanup_interval
                 ) {
-                    if (this.players[pid].timer) {
-                        this.players[pid].should_stop = true;
-                        clearTimeout(this.players[pid].timer);
+                    const player = this.players[pid];
+                    
+                    // حذف از نگاشت کاربر به بازیکن
+                    if (player.jwtPayload?.userId) {
+                        delete this.userToPlayerMap[player.jwtPayload.userId];
+                    }
+                    
+                    if (player.timer) {
+                        player.should_stop = true;
+                        clearTimeout(player.timer);
                     }
                     delete this.players[pid];
                     logger.info(`Cleaned up inactive player: ${pid}`);
@@ -127,24 +133,31 @@ class MathGame {
         player.timer = setTimeout(tick, 1000);
     }
 
-    startGame(playerId = null, jwtPayload = null) {
+    startGame(jwtPayload) {
         try {
+            const userId = jwtPayload?.userId;
+            if (!userId) {
+                throw new Error("User ID is missing in JWT payload");
+            }
+
+            // یافتن بازیکن موجود بر اساس userId
+            let playerId = this.userToPlayerMap[userId];
             let isNewPlayer = false;
-            playerId = playerId || uuidv4();
 
-            if (this.players[playerId]) {
+            if (playerId && this.players[playerId]) {
                 const player = this.players[playerId];
-
-                // به روزرسانی اطلاعات کاربر اگر توکن جدید وجود دارد
-                if (jwtPayload) {
-                    player.jwtPayload = jwtPayload;
-                }
+                
+                // به روزرسانی اطلاعات کاربر
+                player.jwtPayload = jwtPayload;
 
                 if (player.timer) {
                     clearTimeout(player.timer);
                 }
             } else {
+                // ایجاد بازیکن جدید
+                playerId = uuidv4();
                 this.players[playerId] = new Player(playerId, jwtPayload);
+                this.userToPlayerMap[userId] = playerId;
                 isNewPlayer = true;
             }
 
@@ -170,9 +183,9 @@ class MathGame {
             // شروع تایمر
             this.runTimer(playerId);
 
-            logger.info(`Game started for ${playerId}`, {
-                isNewPlayer,
-                userId: jwtPayload?.userId,
+            logger.info(`Game started for user ${userId}`, {
+                playerId,
+                isNewPlayer
             });
 
             return {
@@ -183,15 +196,13 @@ class MathGame {
                 score: player.score,
                 game_active: true,
                 is_new_player: isNewPlayer,
-                user: jwtPayload
-                    ? {
-                          userId: jwtPayload.userId,
-                          firstName: jwtPayload.firstName,
-                          lastName: jwtPayload.lastName,
-                          username: jwtPayload.username,
-                          userImage: jwtPayload.userImage,
-                      }
-                    : null,
+                user: {
+                    userId: jwtPayload.userId,
+                    firstName: jwtPayload.firstName,
+                    lastName: jwtPayload.lastName,
+                    username: jwtPayload.username,
+                    userImage: jwtPayload.userImage,
+                }
             };
         } catch (e) {
             logger.error(`Start game error: ${e.message}`, {
@@ -206,9 +217,10 @@ class MathGame {
         }
     }
 
-    checkAnswer(playerId, userAnswer) {
+    checkAnswer(userId, userAnswer) {
         try {
-            if (!this.players[playerId]) {
+            const playerId = this.userToPlayerMap[userId];
+            if (!playerId || !this.players[playerId]) {
                 return {
                     status: "error",
                     message: "Player not found. Start a new game.",
@@ -262,10 +274,6 @@ class MathGame {
                 message: e.message,
             };
         }
-    }
-
-    getPlayerById(playerId) {
-        return this.players[playerId];
     }
 }
 
@@ -358,12 +366,11 @@ app.post("/api/telegram-auth", (req, res) => {
 // شروع بازی با احراز هویت JWT
 app.post("/api/start", authenticateToken, async (req, res) => {
     try {
-        const { player_id } = req.body;
         const user = req.user; // اطلاعات کاربر از توکن
 
         logger.info(`Start game request for user: ${user.userId}`);
 
-        const result = await gameInstance.startGame(player_id, {
+        const result = await gameInstance.startGame({
             userId: user.userId,
             firstName: user.firstName,
             lastName: user.lastName,
@@ -375,9 +382,6 @@ app.post("/api/start", authenticateToken, async (req, res) => {
     } catch (e) {
         logger.error(`API start error: ${e.message}`, {
             stack: e.stack,
-            ...(process.env.NODE_ENV === "development" && {
-                request_body: req.body,
-            }),
         });
 
         res.status(500).json({
@@ -393,41 +397,22 @@ app.post("/api/start", authenticateToken, async (req, res) => {
 // ارسال پاسخ با احراز هویت JWT
 app.post("/api/answer", authenticateToken, (req, res) => {
     try {
-        const { player_id, answer } = req.body;
+        const { answer } = req.body;
         const user = req.user; // اطلاعات کاربر از توکن
 
-        if (!player_id || answer === undefined) {
+        if (answer === undefined) {
             return res.status(400).json({
                 status: "error",
-                message: "player_id and answer are required",
+                message: "Answer is required",
             });
         }
 
-        // اعتبارسنجی مالکیت بازیکن
-        const player = gameInstance.getPlayerById(player_id);
-        if (!player) {
-            return res.status(404).json({
-                status: "error",
-                message: "Player not found",
-            });
-        }
-
-        if (player.jwtPayload?.userId !== user.userId) {
-            return res.status(403).json({
-                status: "error",
-                message: "Unauthorized access to player",
-            });
-        }
-
-        const result = gameInstance.checkAnswer(player_id, answer);
+        const result = gameInstance.checkAnswer(user.userId, answer);
 
         res.json(result);
     } catch (e) {
         logger.error(`API answer error: ${e.message}`, {
             stack: e.stack,
-            ...(process.env.NODE_ENV === "development" && {
-                request_body: req.body,
-            }),
         });
 
         res.status(500).json({
@@ -446,15 +431,15 @@ app.get("/api/leaderboard", (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = parseInt(req.query.offset) || 0;
 
+        // تبدیل بازیکنان به آرایه و مرتب‌سازی
         const allPlayers = Object.values(gameInstance.players)
+            .filter(player => player.jwtPayload) // فقط بازیکنان احراز شده
             .map((player) => ({
                 player_id: player.id,
                 score: player.top_score,
-                ...(player.jwtPayload && {
-                    username: player.jwtPayload.username,
-                    first_name: player.jwtPayload.firstName,
-                    user_image: player.jwtPayload.userImage,
-                }),
+                username: player.jwtPayload.username,
+                first_name: player.jwtPayload.firstName,
+                user_image: player.jwtPayload.userImage,
             }))
             .sort((a, b) => b.score - a.score);
 

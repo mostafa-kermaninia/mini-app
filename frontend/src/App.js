@@ -3,7 +3,6 @@ import ProblemCard from "./components/ProblemCard";
 import AnswerButtons from "./components/AnswerButtons";
 import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
-import { v4 as uuidv4 } from 'uuid';
 
 // ثابت‌های برنامه
 const ROUND_TIME = 40;
@@ -11,7 +10,6 @@ const API_BASE = 'https://math-backend.loca.lt/api';
 
 function App() {
   // State مدیریت
-  const [playerId, setPlayerId] = useState(() => localStorage.getItem("playerId") || "");
   const [problem, setProblem] = useState(null);
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME);
   const [loading, setLoading] = useState(false);
@@ -27,20 +25,18 @@ function App() {
     const saved = localStorage.getItem("userData");
     return saved ? JSON.parse(saved) : null;
   });
+  const [gameActive, setGameActive] = useState(false);
 
   // Refs برای تایمرها
   const timerId = useRef(null);
-  const statusIntervalId = useRef(null);
   const abortControllerRef = useRef(null);
 
   // پاک‌سازی تایمرها و درخواست‌ها
   const clearResources = useCallback(() => {
     if (timerId.current) clearInterval(timerId.current);
-    if (statusIntervalId.current) clearInterval(statusIntervalId.current);
     if (abortControllerRef.current) abortControllerRef.current.abort();
     
     timerId.current = null;
-    statusIntervalId.current = null;
     abortControllerRef.current = null;
   }, []);
 
@@ -51,6 +47,7 @@ function App() {
     setFinalScore(finalScore);
     setView("board");
     setLeaderboardKey(Date.now());
+    setGameActive(false);
   }, [clearResources]);
 
   // تابع احراز هویت کاربر
@@ -109,7 +106,7 @@ function App() {
 
   // ارسال پاسخ به سرور
   const submitAnswer = useCallback(async (answer) => {
-    if (!problem || !playerId || loading) return;
+    if (!problem || loading || !token) return;
     
     try {
       setLoading(true);
@@ -122,10 +119,7 @@ function App() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          player_id: playerId, 
-          answer: Boolean(answer) 
-        }),
+        body: JSON.stringify({ answer: Boolean(answer) }),
         signal: abortControllerRef.current.signal
       });
 
@@ -159,7 +153,7 @@ function App() {
         setLoading(false);
       }
     }
-  }, [problem, playerId, loading, handleGameOver, token]);
+  }, [problem, loading, handleGameOver, token]);
 
   // مدیریت زمان تمام شده
   const handleTimeout = useCallback(async () => {
@@ -194,6 +188,7 @@ function App() {
       setLoading(true);
       setError(null);
       setView("game");
+      setGameActive(true);
       
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -204,7 +199,6 @@ function App() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ player_id: playerId }),
         signal: abortController.signal
       });
 
@@ -223,8 +217,6 @@ function App() {
       }
 
       setProblem(data.problem);
-      setPlayerId(data.player_id);
-      localStorage.setItem("playerId", data.player_id);
       startLocalTimer(data.time_left ?? ROUND_TIME);
       setScore(data.score ?? 0);
 
@@ -240,6 +232,7 @@ function App() {
           ? "Could not connect to server. Please check your connection."
           : err.message
       );
+      setGameActive(false);
       
       // اگر خطای احراز هویت بود، به صفحه لاگین برگرد
       if (err.message.includes("token") || err.message.includes("Unauthorized")) {
@@ -254,7 +247,7 @@ function App() {
         setLoading(false);
       }
     }
-  }, [playerId, startLocalTimer, isAuthenticated, token]);
+  }, [startLocalTimer, isAuthenticated, token]);
 
   // Effects مدیریت
   useEffect(() => {
@@ -387,7 +380,7 @@ function App() {
         <TimerCircle total={ROUND_TIME} left={timeLeft} />
         <AnswerButtons 
           onAnswer={submitAnswer} 
-          disabled={loading}
+          disabled={loading || !gameActive}
         />
       </div>
     ) : (
@@ -401,7 +394,7 @@ function App() {
         {loading ? "Loading..." : "Start Game"}
       </button>
     );
-  }, [view, problem, score, timeLeft, loading, submitAnswer, startGame, userData]);
+  }, [view, problem, score, timeLeft, loading, submitAnswer, startGame, userData, gameActive]);
 
   const leaderboardContent = useMemo(() => (
     view === "board" && (
