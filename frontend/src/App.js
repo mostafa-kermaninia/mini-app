@@ -5,7 +5,9 @@ import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
 import { v4 as uuidv4 } from 'uuid';
 
-// ثابت‌های برنامه  
+// ثابت‌های برنامه 
+
+
 const ROUND_TIME = 40;
 const API_BASE =  'https://math-backend.loca.lt/api'; //backkkkkkkkk
 
@@ -67,6 +69,10 @@ function App() {
       if (!initData) {
         throw new Error('Telegram authentication data not found');
       }
+
+    console.log("mameeeeeeeee");
+    console.log(initData);
+
 
 
     // ارسال درخواست به سرور

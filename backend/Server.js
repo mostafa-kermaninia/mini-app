@@ -10,9 +10,12 @@ const mathEngine = require('./math_engine.js');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const validateTelegramData = require('./telegramAuth').default;
+const jwt = require('jsonwebtoken')
+// import jwt from 'jsonwebtoken'; // تغییر مهم اینجا
 
 
 
+// تنظیمات پایه
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -20,7 +23,7 @@ app.use(express.json());
 const allowedOrigins = [
     'https://my-frontend.loca.lt',  // fronnnnnnnnnnnnnnnt
     'https://math-backend.loca.lt',
-    'https://web.telegram.org'
+    'https://web.telegram.org' // اضافه کردن آدرس تلگرام
 ];
 // Add this middleware
 app.use((req, res, next) => {
@@ -314,8 +317,21 @@ app.post('/api/telegram-auth', (req, res) => {
         // اعتبارسنجی داده‌های تلگرام
         const user = validateTelegramData(initData, process.env.BOT_TOKEN);
         
+        // ساخت JWT
+        const token = jwt.sign(
+            {
+            userId: user.id,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            username: user.username,
+            userImage: user.photo_url
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' } // انقضا توکن
+        );
+
         // لاگ موفقیت آمیز (بدون اطلاعات حساس)
-        logger.info(`Telegram authentication successful for user: ${user}`);
+        logger.info(`Telegram authentication successful for user: ${user.id}`);
         
         return res.json({
             valid: true,
@@ -326,7 +342,8 @@ app.post('/api/telegram-auth', (req, res) => {
                 username: user.username,
                 language_code: user.language_code,
                 allows_write_to_pm: user.allows_write_to_pm
-            }
+            },
+            token: token
         });
         
     } catch (error) {
