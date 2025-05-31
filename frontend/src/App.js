@@ -3,15 +3,13 @@ import ProblemCard from "./components/ProblemCard";
 import AnswerButtons from "./components/AnswerButtons";
 import TimerCircle from "./components/TimerCircle";
 import Leaderboard from "./components/Leaderboard";
-import { v4 as uuidv4 } from 'uuid';
 
-// ثابت‌های برنامه  
+// ثابت‌های برنامه
 const ROUND_TIME = 40;
-const API_BASE =  'https://math-backend.loca.lt/api'; //backkkkkkkkk
+const API_BASE = 'https://math-backend.loca.lt/api';
 
 function App() {
   // State مدیریت
-  const [playerId, setPlayerId] = useState(() => localStorage.getItem("playerId") || "");
   const [problem, setProblem] = useState(null);
   const [timeLeft, setTimeLeft] = useState(ROUND_TIME);
   const [loading, setLoading] = useState(false);
@@ -20,23 +18,25 @@ function App() {
   const [score, setScore] = useState(0);
   const [error, setError] = useState(null);
   const [leaderboardKey, setLeaderboardKey] = useState(Date.now());
-  const [telegramUser, setTelegramUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [token, setToken] = useState(() => localStorage.getItem("jwtToken") || null);
+  const [userData, setUserData] = useState(() => {
+    const saved = localStorage.getItem("userData");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [gameActive, setGameActive] = useState(false);
 
   // Refs برای تایمرها
   const timerId = useRef(null);
-  const statusIntervalId = useRef(null);
   const abortControllerRef = useRef(null);
 
   // پاک‌سازی تایمرها و درخواست‌ها
   const clearResources = useCallback(() => {
     if (timerId.current) clearInterval(timerId.current);
-    if (statusIntervalId.current) clearInterval(statusIntervalId.current);
     if (abortControllerRef.current) abortControllerRef.current.abort();
     
     timerId.current = null;
-    statusIntervalId.current = null;
     abortControllerRef.current = null;
   }, []);
 
@@ -47,6 +47,7 @@ function App() {
     setFinalScore(finalScore);
     setView("board");
     setLeaderboardKey(Date.now());
+    setGameActive(false);
   }, [clearResources]);
 
   // تابع احراز هویت کاربر
@@ -60,7 +61,7 @@ function App() {
         console.log("Running in non-Telegram environment, skipping authentication");
         setIsAuthenticated(true);
         setView("home");
-        return true;
+        return;
       }
 
       const initData = window.Telegram.WebApp.initData || '';
@@ -68,42 +69,36 @@ function App() {
         throw new Error('Telegram authentication data not found');
       }
 
-
-    // ارسال درخواست به سرور
-    const response = await fetch(`${API_BASE}/telegram-auth`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ initData }) // ارسال به صورت صحیح
-    });
+      // ارسال درخواست به سرور
+      const response = await fetch(`${API_BASE}/telegram-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData })
+      });
 
       if (!response.ok) {
-        console.log(response.json())
-        console.log("test")
-        throw new Error('Authentication failed');
+        const errorData = await response.json();
+        throw new Error(errorData?.message || 'Authentication failed');
       }
 
       const data = await response.json();
       
-      // if (!data.valid) {
-      //   throw new Error('Invalid Telegram user');
-      // }
-
       if (!data?.valid) {
         throw new Error(data?.message || 'Invalid Telegram user');
       } 
 
-
-      // ذخیره اطلاعات کاربر و اجازه دسترسی
-      setTelegramUser(data.user);
+      // ذخیره توکن و اطلاعات کاربر
+      setToken(data.token);
+      setUserData(data.user);
+      localStorage.setItem("jwtToken", data.token);
+      localStorage.setItem("userData", JSON.stringify(data.user));
       setIsAuthenticated(true);
       setView("home");
-      return true;
     } catch (error) {
       console.error('Authentication error:', error);
       setError(error.message);
       setIsAuthenticated(false);
       setView("auth");
-      return false;
     } finally {
       setAuthLoading(false);
     }
@@ -111,7 +106,7 @@ function App() {
 
   // ارسال پاسخ به سرور
   const submitAnswer = useCallback(async (answer) => {
-    if (!problem || !playerId || loading) return;
+    if (!problem || loading || !token) return;
     
     try {
       setLoading(true);
@@ -120,11 +115,11 @@ function App() {
 
       const response = await fetch(`${API_BASE}/answer`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          player_id: playerId, 
-          answer: Boolean(answer) 
-        }),
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ answer: Boolean(answer) }),
         signal: abortControllerRef.current.signal
       });
 
@@ -146,13 +141,19 @@ function App() {
       if (err.name !== 'AbortError') {
         console.error("Answer error:", err);
         setError(err.message || "Failed to submit answer");
+        
+        // اگر خطای احراز هویت بود، به صفحه لاگین برگرد
+        if (err.message.includes("token") || err.message.includes("Unauthorized")) {
+          setIsAuthenticated(false);
+          setView("auth");
+        }
       }
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [problem, playerId, loading, handleGameOver]);
+  }, [problem, loading, handleGameOver, token]);
 
   // مدیریت زمان تمام شده
   const handleTimeout = useCallback(async () => {
@@ -177,8 +178,9 @@ function App() {
 
   // شروع بازی جدید
   const startGame = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !token) {
       setError('Please authenticate first');
+      setView("auth");
       return;
     }
     
@@ -186,22 +188,17 @@ function App() {
       setLoading(true);
       setError(null);
       setView("game");
+      setGameActive(true);
       
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
-
-      const requestBody = {
-        player_id: playerId || "",
-        ...(telegramUser ? { telegram_user: telegramUser } : {})
-      };
 
       const response = await fetch(`${API_BASE}/start`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "X-Request-ID": uuidv4()
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(requestBody),
         signal: abortController.signal
       });
 
@@ -220,8 +217,6 @@ function App() {
       }
 
       setProblem(data.problem);
-      setPlayerId(data.player_id);
-      localStorage.setItem("playerId", data.player_id);
       startLocalTimer(data.time_left ?? ROUND_TIME);
       setScore(data.score ?? 0);
 
@@ -237,24 +232,39 @@ function App() {
           ? "Could not connect to server. Please check your connection."
           : err.message
       );
-      setView("home");
+      setGameActive(false);
+      
+      // اگر خطای احراز هویت بود، به صفحه لاگین برگرد
+      if (err.message.includes("token") || err.message.includes("Unauthorized")) {
+        setIsAuthenticated(false);
+        setView("auth");
+      } else {
+        setView("home");
+      }
       
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [playerId, startLocalTimer, isAuthenticated, telegramUser]);
+  }, [startLocalTimer, isAuthenticated, token]);
 
   // Effects مدیریت
   useEffect(() => {
     const initAuth = async () => {
-      await authenticateUser();
+      // اگر توکن ذخیره شده داریم، مستقیماً به صفحه اصلی برو
+      if (token && userData) {
+        setIsAuthenticated(true);
+        setView("home");
+        setAuthLoading(false);
+      } else {
+        await authenticateUser();
+      }
     };
 
     initAuth();
     return () => clearResources();
-  }, [authenticateUser, clearResources]);
+  }, [authenticateUser, clearResources, token, userData]);
 
   useEffect(() => {
     if (error) {
@@ -262,6 +272,16 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // خروج از حساب کاربری
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("jwtToken");
+    localStorage.removeItem("userData");
+    setToken(null);
+    setUserData(null);
+    setIsAuthenticated(false);
+    setView("auth");
+  }, []);
 
   // محتوای صفحه احراز هویت
   const authContent = useMemo(() => {
@@ -297,6 +317,28 @@ function App() {
 
     return (
       <div className="flex flex-col items-center gap-6 w-full max-w-md">
+        {userData && (
+          <div className="flex items-center gap-3 bg-white/10 p-3 rounded-xl w-full">
+            {userData.photo_url && (
+              <img 
+                src={userData.photo_url} 
+                alt="Profile" 
+                className="w-12 h-12 rounded-full"
+              />
+            )}
+            <div>
+              <h2 className="font-bold text-lg">{userData.first_name} {userData.last_name}</h2>
+              <p className="text-sm opacity-80">@{userData.username}</p>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="ml-auto text-sm bg-red-500/20 px-3 py-1 rounded-lg hover:bg-red-500/30"
+            >
+              Logout
+            </button>
+          </div>
+        )}
+        
         <h1 className="text-3xl font-bold">Math Challenge</h1>
         <p className="text-center">
           Test your math skills in this exciting timed challenge!
@@ -312,7 +354,7 @@ function App() {
         </button>
       </div>
     );
-  }, [view, loading, startGame]);
+  }, [view, loading, startGame, userData, handleLogout]);
 
   // محتوای بازی
   const gameContent = useMemo(() => {
@@ -320,12 +362,25 @@ function App() {
 
     return problem ? (
       <div className="flex flex-col items-center gap-6 w-full max-w-md">
-        <p className="text-2xl font-bold">Score: {score}</p>
+        <div className="flex justify-between w-full">
+          <p className="text-2xl font-bold">Score: {score}</p>
+          {userData && (
+            <div className="flex items-center gap-2">
+              <img 
+                src={userData.photo_url} 
+                alt="Profile" 
+                className="w-8 h-8 rounded-full"
+              />
+              <span>{userData.first_name}</span>
+            </div>
+          )}
+        </div>
+        
         <ProblemCard text={problem} />
         <TimerCircle total={ROUND_TIME} left={timeLeft} />
         <AnswerButtons 
           onAnswer={submitAnswer} 
-          disabled={loading}
+          disabled={loading || !gameActive}
         />
       </div>
     ) : (
@@ -339,7 +394,7 @@ function App() {
         {loading ? "Loading..." : "Start Game"}
       </button>
     );
-  }, [view, problem, score, timeLeft, loading, submitAnswer, startGame]);
+  }, [view, problem, score, timeLeft, loading, submitAnswer, startGame, userData, gameActive]);
 
   const leaderboardContent = useMemo(() => (
     view === "board" && (
@@ -348,6 +403,7 @@ function App() {
         API_BASE={API_BASE}
         onReplay={startGame}
         finalScore={finalScore}
+        onHome={() => setView("home")}
       />
     )
   ), [view, leaderboardKey, startGame, finalScore]);
