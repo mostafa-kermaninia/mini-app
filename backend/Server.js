@@ -1,3 +1,7 @@
+require('dotenv').config();
+// console.log("BOT_TOKEN is:", process.env.BOT_TOKEN);
+// console.log("hiiiiiiiiiiiiiii");
+
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
@@ -7,29 +11,46 @@ const crypto = require('crypto');
 const fetch = require('node-fetch');
 const validateTelegramData = require('./telegramAuth').default;
 
-// تنظیمات پایه
-const app = express();
 
-// تنظیمات CORS برای Render
+const app = express();
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
 const allowedOrigins = [
-    'https://math-game-momis.onrender.com', // آدرس فرانت‌اند در Render
-    'http://localhost:5000',
-    'https://solid-games-do.loca.lt'
+    'https://my-frontend.loca.lt',  // fronnnnnnnnnnnnnnnt
+    'https://math-backend.loca.lt',
+    'https://web.telegram.org'
 ];
+// Add this middleware
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", allowedOrigins);
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    next();
+  });
+// const corsOptions = {
+//   origin: function(origin, callback) {
+//     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+//       callback(null, true);
+//     } else {
+//       console.warn(`Blocked by CORS: ${origin}`);
+//       callback(new Error('Not allowed by CORS'));
+//     }
+//   },
+//   methods: ['GET', 'POST', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
+//   credentials: true
+// };
 
 const corsOptions = {
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`Blocked by CORS: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
-  credentials: true
-};
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
+    credentials: true,
+    optionsSuccessStatus: 200 // اضافه کردن این خط
+  };
+  
+  // اضافه کردن هندلر OPTIONS برای همه مسیرها
+  app.options('*', cors(corsOptions));
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -263,6 +284,9 @@ class MathGame {
             };
         }
     }
+    getPlayerByTelegramId(telegramId) {
+        return Object.values(this.players).find((p) => p.telegramUser?.id === telegramId);
+      }
 }
 
 const gameInstance = new MathGame();
@@ -275,15 +299,17 @@ app.use(express.static(path.join(__dirname, '../frontend/build')));
 // اعتبارسنجی داده‌های تلگرام
 app.post('/api/telegram-auth', (req, res) => {
     try {
+        console.log("Incoming request body:", req.body); // اضافه کردن این خط
         const { initData } = req.body;
-        
         if (!initData) {
+            console.error("No initData provided"); // اصلاح شد
+            logger.error("[Telegram Auth] No initData provided");
             return res.status(400).json({ 
                 valid: false,
                 message: "initData is required" 
             });
         }
-        
+        console.log("Using BOT_TOKEN:", process.env.BOT_TOKEN ? "Exists" : "Missing");
         // اعتبارسنجی داده‌های تلگرام
         const user = validateTelegramData(initData, process.env.BOT_TOKEN);
         
@@ -305,15 +331,17 @@ app.post('/api/telegram-auth', (req, res) => {
     } catch (error) {
         logger.error('Telegram auth error:', {
             error: error.message,
-            stack: error.stack
+            stack: error.stack,
+            initData: req.body?.initData, // مراقب باشید اطلاعات حساس را لاگ نکنید
+
         });
         
         return res.status(401).json({ 
             valid: false,
             message: "Authentication failed",
-            ...(process.env.NODE_ENV === 'development' && {
-                details: error.message
-            })
+            // ...(process.env.NODE_ENV === 'development' && {
+            //     details: error.message
+            // })
         });
     }
 });
