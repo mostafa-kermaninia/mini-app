@@ -12,7 +12,6 @@ const fetch = require('node-fetch');
 const validateTelegramData = require('./telegramAuth').default;
 
 
-// تنظیمات پایه
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -20,7 +19,7 @@ app.use(express.json());
 const allowedOrigins = [
     'https://my-frontend.loca.lt',  // fronnnnnnnnnnnnnnnt
     'https://math-backend.loca.lt',
-    'https://web.telegram.org' // اضافه کردن آدرس تلگرام
+    'https://web.telegram.org'
 ];
 // Add this middleware
 app.use((req, res, next) => {
