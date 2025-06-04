@@ -362,7 +362,7 @@ app.post("/api/telegram-auth", (req, res) => {
         });
     }
 });
-
+// mostafa
 // شروع بازی با احراز هویت JWT
 app.post("/api/start", authenticateToken, async (req, res) => {
     try {
