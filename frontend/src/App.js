@@ -6,7 +6,7 @@ import Leaderboard from "./components/Leaderboard";
 
 // ثابت‌های برنامه
 const ROUND_TIME = 40;
-const API_BASE = 'https://math-backend.loca.lt/api';
+const API_BASE = '/api';
 
 function App() {
   // State مدیریت

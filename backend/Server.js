@@ -13,14 +13,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 const allowedOrigins = [
-    "https://my-frontend.loca.lt",
-    "https://math-backend.loca.lt",
-    "https://web.telegram.org",
+    "https://momis.studio",
+    "https://www.momis.studio",
+    "https://web.telegram.org"
 ];
 
 // Middleware برای CORS
 app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", allowedOrigins);
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.header("Access-Control-Allow-Origin", origin);
+    }
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
 });
