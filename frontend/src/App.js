@@ -8,6 +8,7 @@ import Leaderboard from "./components/Leaderboard";
 const ROUND_TIME = 40;
 const API_BASE = '/api';
 
+
 function App() {
   // State مدیریت
   const [problem, setProblem] = useState(null);
