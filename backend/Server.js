@@ -18,6 +18,7 @@ const allowedOrigins = [
     "https://web.telegram.org"
 ];
 
+
 // Middleware برای CORS
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", allowedOrigins);
